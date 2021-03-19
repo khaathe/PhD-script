@@ -1,0 +1,5 @@
+bowtie2 --threads <n> -q -t --local --sensitive-local -x <bowtie2-index-prefix> <read.fq> -S <result-bowtie2-alignment.sam>
+
+samtools view -b <result.bowtie2-alignment.sam> -o <result.bowtie2-alignment.bam>
+
+htseq-count [-f bam] -m intersection-nonempty -i gene_id -r pos -s no  <alignment.sam | alignement.bam> <annotation.gtf> > <count-table.htseq-count.txt>
