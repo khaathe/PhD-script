@@ -24,7 +24,19 @@ O2.decrease <- sapply(t, function (t) {
 })
 names(O2.decrease) <- t
 
-parameters <- list(A=0.005, D=0.005, s=0.02*760, n=4, gamma.h=40, pO2=O2.cos)
+# Default Parameters
+# c.h <- 2.0 * 3.0 * 0.4 * 0.36 * 1.5 * 10.94 * 10
+# c.ldh <-  2.6
+# c.pdk <- 0.8 * 29.6
+# c.pdh <- 0.09
+
+# Custom Parameters
+c.h <- 2.0 * 3.0 * 0.4 * 0.36 * 1.5 * 10.94 * 10
+c.ldh <-  1.0
+c.pdk <- 1.0
+c.pdh <- 1.0
+
+parameters <- list(A=0.005, D=0.005, s=0.02*760, n=4, gamma.h=40, pO2=O2.cos, c.h = c.h, c.ldh = c.ldh, c.pdk = c.pdk, c.pdh = c.pdh)
 y0 <- c(H = 0.0, LDH = 0.0, PDK = 0.0, PDH = 0.0)
 
 dt <- data.frame(T=t)
