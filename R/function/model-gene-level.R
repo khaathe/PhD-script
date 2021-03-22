@@ -171,3 +171,32 @@ add.parameters.name <- function (all.li.param,li.param.dir, genes.names) {
   }
   write.csv(x = param.df, file = file)
 }
+
+hif.model.odes <- function(t, y0, parameters){
+  with(as.list(c(y0, parameters, t=t)),{
+    O2 <- -as.numeric(pO2[as.character(t)])
+    
+    h.O2 <- (s^n/(s^n+O2^n))+gamma.h*(O2^n/(s^n+O2^n))
+    hill.h <- 1
+    c.h <- 2.0 * 3.0 * 0.4 * 0.36 * 1.5 * 10.94 * 10
+    c.h <- 15
+    d.H <- A * c.h * hill.h - D * H * h.O2 
+    
+    hill.ldh <- (4.64^n/(4.64^n+H^n))+3.81*(H^n/(4.64^n+H^n))
+    c.ldh <-  2.6
+    c.ldh <- 1.0
+    d.LDH <- A * c.ldh * hill.ldh  - D * LDH
+    
+    hill.pdk <- (5^n/(5^n+H^n))+6.97*(H^n/(5^n+H^n))
+    c.pdk <- 0.8 * 29.6
+    c.pdk <- 1.0
+    d.PDK <- A * c.pdk * hill.pdk - D * PDK
+    
+    hill.pdh <- (2.2^n/(2.2^n+PDK^n))+0.14*(PDK^n/(2.2^n+PDK^n))
+    c.pdh <- 0.09
+    c.pdh <- 1.0
+    d.PDH <- A * c.pdh * hill.pdh - D * PDH
+    
+    list(c(d.H, d.LDH, d.PDK, d.PDH))
+  })
+}
