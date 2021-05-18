@@ -13,12 +13,22 @@ odes <- function(t, state, parameters){
   })
 }
 
-times <- seq(0, 100, by = 0.01)
-O <- 0.052 # 0.05*760*1.39e-3
-G <- 5 # 4e-11
-ATP <- 1
-H <- 7.4
-parameters <- list(Vo=0.012, Ko = 0.005, pg=1, A0 = (29/5)*0.012, Kg = 0.04, Kh=0.00025)
+t.start <- 0
+t.end <- 60 # s
+dt <- 0.01
+times <- seq(t.start, t.end, by = dt)
+O <- 0.05*760*1.39e-3 # 0.05*760*1.39e-3 mmol/L
+G <- 5 # mmol/L
+ATP <- 0 # 
+H <- 7.4 # pH
+Vo <- 0.012 # 0.012 mmol/L/s
+Ko <- 0.005 # mmol/L
+A0 <- (29/5)*Vo # 
+pg <- 1 # dimensionless
+Kg <- 0.04 # mmol/L
+Kh <- 0.00025 # dimensionless
+
+parameters <- list(Vo=Vo, Ko = Ko, pg=pg, A0 = A0, Kg = Kg, Kh=Kh)
 state <- c(O=O, G=G, ATP=ATP, H=H)
 
 out <- ode(y = state, times = times, func = odes, parms =  parameters, method = 'rk4')
@@ -28,6 +38,6 @@ plot_ly(data = as.data.frame(out), x=~time, y=~O, name = "Oxygen (mmol/L)", type
   add_trace(y=~ATP, name = "ATP (mmol/L)") %>%
   add_trace(y=~H, name = "pH" ) %>%
   layout(title=paste0(O, " Oxygen (mmol/L), ", G, " Glucose (mmol/L)"),
-         xaxis = list(title="Time (min)"),
+         xaxis = list(title="Time (s)"),
          yaxis = list(title="Concentration")
   )
