@@ -252,6 +252,7 @@ int main(void)
     cout << endl;
     cout << "Starting parameters" << endl;
     cout << endl;
+    cout << "r_C(mim): " << r_C << endl;
     cout << "m_CO2_C(pg): " << m_CO2_C_old << endl;
     cout << "m_H_C(pg): " << m_H_C_old << endl;
     cout << "m_HCO3_C(pg): " << m_HCO3_C_old << endl;
@@ -307,6 +308,7 @@ int main(void)
     outData << "# Starting parameters" << endl;
 
     outData << endl;
+    outData << "r_C(mim): " << r_C << endl;
     outData << "# m_CO2_C(pg):" << m_CO2_C_old << endl;
     outData << "# m_H_C(pg):" << m_H_C_old << endl;
     outData << "# m_HCO3_C(pg):" << m_HCO3_C_old << endl;
@@ -327,6 +329,7 @@ int main(void)
     //output on pH file
     outDatapH << "# Starting parameters" << endl;
     outDatapH << endl;
+    outDatapH << "r_C(mim): " << r_C << endl;
     outDatapH << "# m_CO2_C(pg):" << m_CO2_C_old << endl;
     outDatapH << "# m_H_C(pg):" << m_H_C_old << endl;
     outDatapH << "# m_HCO3_C(pg):" << m_HCO3_C_old << endl;
