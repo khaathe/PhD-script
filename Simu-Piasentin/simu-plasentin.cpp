@@ -12,7 +12,6 @@
     -I/usr/include -L/usr/lib/x86_64-linux-gnu -lgsl -lgslcblas -lm
 */
 
-
 #include <iostream>
 #include <iomanip>
 #include <fstream>
