@@ -1,10 +1,10 @@
 #!/usr/bin/python
-from math import tan
+from math import exp, tan
 from sympy import Matrix, MatrixSymbol
 from sympy.core.symbol import Symbol, symbols
 from sympy import tanh
 from sympy.codegen.cfunctions import log10, Pow
-from sympy.printing.ccode import C99CodePrinter
+from sympy.printing.c import C99CodePrinter
 import re
 
 from sympy.printing.codeprinter import ccode
@@ -33,7 +33,7 @@ O,A,D,N,HIF_PROD,MW_H,MW_CO2,MW_O2,MW_HCO3,MW_AcL,V_C,V_c,S_C,PM_CO2,gAcL,q_O2,k
 
 m_CO2_C,m_H_C,m_HCO3_C,m_CO2_c_old, m_H_c, m_HCO3_c = symbols('m_CO2_C,m_H_C,m_HCO3_C,m_CO2_c_old, m_H_c, m_HCO3_c')
 
-X = MatrixSymbol('X', 8, 1)
+X = MatrixSymbol('x', 8, 1)
 S = MatrixSymbol('S', 5, 5)
 gamma_array = MatrixSymbol('gamma_array', 5, 5)
 M1 = Matrix([
@@ -57,26 +57,34 @@ M2 = Matrix([
     [m_HCO3_C]
 ])
 Jacobian = M1.jacobian(M2)
-J = MatrixSymbol('J', Jacobian.shape[0], Jacobian.shape[1])
+class MyCodePrinter(C99CodePrinter):        
+    def _print_MatrixElement(self, expr):
+        matrice_element = '{0}[{1}][{2}]'.format(expr.parent, expr.i, expr.j)
+        if expr.parent.name.upper() == 'X':
+            matrice_element = '{0}[{1}]'.format(expr.parent.name, expr.i)
+        elif expr.parent.name.upper() == 'J':
+            matrice_element = '{0}({1})({2})'.format(expr.parent, expr.i, expr.j)
+        return self._print(matrice_element)
 
-print( f'{Jacobian.shape}' )
-
-printer = C99CodePrinter()
-class MyCodePrinter(C99CodePrinter):
-    def _print_MatrixSymbol(self, expr):
-        return self._print("No matter what symbol you pass in I will always print:\n\nNi!")
 my_printer = MyCodePrinter()
 
-# print( my_printer.doprint(Jacobian, assign_to=J) )
-print( my_printer.doprint(S))
-
-cpp_code = '''void jacobi()( const state_type &x , matrix_type &J , const double &t , state_type &dfdt )
+cpp_code = '''void jacobi ( const state_type &x , matrix_type &J , const double &t , state_type &dfdt, SimuKevinParameters *p, vector<double> nearest_gradient, Cell *pCell )
 {
+    // Binding ODE parameters to Variables
+	auto& [
+		A, D, N, hif_coeff_prod, Vo, Ko, pg, A0,  Kg, Kh, Vmax_f, Vmax_r, Km_Hi, Km_He,
+		MW_H, MW_CO2, MW_O2, MW_HCO3, MW_AcL, r_C, PM_CO2, gAcL, q_O2, k1, k2,  VMAXAcL, K_mAcL, a2cH_slope, a2cH_thr, c2aH_slope,
+		c2aH_thr,  VMAXNHE, K_mNHE, a, l_NHE, pH0_NHE,  VMAXTHCO3, K_mTHCO3, l_THCO3, pHe0_THCO3, g_THCO3, pHi0_THCO3, VMAXCA9, 
+		K_mCA9, d_CA9, pKa, pH_cell, SensO2, SensATP
+	] = p->ode_parameters;
+	auto S = p->S;
+	auto gamma_array = p->gamma_array;
+
 '''
 i=0
 for i in range(Jacobian.shape[0]):
     for j in range(Jacobian.shape[1]):
-        cpp_code = cpp_code + ccode(Jacobian[i,j], assign_to=f'J[{i},{j}]') + '\n'
+        cpp_code = cpp_code + "\t" + my_printer.doprint(Jacobian[i,j], assign_to=f'J({i},{j})') + '\n'
 cpp_code = cpp_code + "}"
 
 with open('jacobi.cpp', 'w') as out:
