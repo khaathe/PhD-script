@@ -64,4 +64,4 @@ dds <- DESeqDataSetFromMatrix(countData = count.data, colData = col.data, design
 ####### Run differential expression analysis
 dds <- DESeq(dds)
 res <- results(dds, alpha = 0.05)
-
+write.csv(as.data.frame(res), file = "/home/spinicck/PhD/Data/PDCL/pdcl_vs_control.csv")
