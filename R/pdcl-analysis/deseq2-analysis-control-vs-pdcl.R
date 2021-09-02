@@ -28,28 +28,29 @@ astrocyte.dt <- astrocyte.dt[ !(astrocyte.dt$gene_id %in% non.uniq.gene.id), ]
 ######### Load PDCL DataBase
 
 # Prepare count table with all PDCL samples and write a txt file
-# Use this function if the file isn't already created or need update
-prepare.pdcl.count.table <- function (){
-  pdcl.db.dir <- "/home/spinicck/PhD/Data/PDCL/data_Annabelle/"
-  pdcl.files.name <- list.files(path = pdcl.db.dir)
-  pdcl.samples.name <- sub(".genes.results", "", pdcl.files.name)
-  pdcl.count.table <- read.table(paste0(pdcl.db.dir, pdcl.files.name[1]), header = T, sep = "\t", as.is = "gene_id")
-  pdcl.count.table <- pdcl.count.table[, c("gene_id", "expected_count")]
-  colnames(pdcl.count.table)[2] <- pdcl.samples.name[1]
-  for ( i in  2:length(pdcl.files.name) ){
-    count.table <- read.table(paste0(pdcl.db.dir, pdcl.files.name[i]), header = T, sep = "\t",as.is = "gene_id")
-    count.table <- count.table[, c("gene_id", "expected_count")]
-    colnames(count.table)[2] <- pdcl.samples.name[i]
-    pdcl.count.table <- merge(pdcl.count.table, count.table)
-  }
-  write.table(pdcl.count.table, file = "/home/spinicck/PhD/Data/PDCL/lignees_count_genes_PDCL.txt",
-              sep = "\t", row.names = F, col.names = T)
-}
+# Uncoment this code only to create a count table or update it 
+# pdcl.db.dir <- "/home/spinicck/PhD/Data/PDCL/data_Annabelle/"
+# pdcl.files.name <- list.files(path = pdcl.db.dir)
+# pdcl.samples.name <- sub(".genes.results", "", pdcl.files.name)
+# pdcl.count.table <- read.table(paste0(pdcl.db.dir, pdcl.files.name[1]), header = T, sep = "\t", as.is = "gene_id")
+# pdcl.count.table <- pdcl.count.table[, c("gene_id", "expected_count")]
+# colnames(pdcl.count.table)[2] <- pdcl.samples.name[1]
+# for ( i in  2:length(pdcl.files.name) ){
+#   count.table <- read.table(paste0(pdcl.db.dir, pdcl.files.name[i]), header = T, sep = "\t",as.is = "gene_id")
+#   count.table <- count.table[, c("gene_id", "expected_count")]
+#   colnames(count.table)[2] <- pdcl.samples.name[i]
+#   pdcl.count.table <- merge(pdcl.count.table, count.table)
+# }
+# write.table(pdcl.count.table, file = "/home/spinicck/PhD/Data/PDCL/lignees_count_genes_PDCL.txt",
+#             sep = "\t", row.names = F, col.names = T)
+
+
 ## Load the PDCL count table
 # Disabled check.names otherwise it will an X as column names aren't valid according to R
 pdcl.count.table <- read.table("/home/spinicck/PhD/Data/PDCL/lignees_count_genes_PDCL.txt", sep = "\t", header = T, as.is = "gene_id", check.names = F)
-pdcl.count.table <- lapply(pdcl.count.table, function(x){ if(is.numeric(x)){ return(as.integer(x)) } else {return(x)} } ) 
-pdcl.count.table <- as.data.frame(pdcl.count.table)
+# R use the type numeric instead of integer when reading the count table which throw an error later with DESeq2
+# Here we convert all numeric column into integers
+for (c in colnames(pdcl.count.table)) { pdcl.count.table[, c] <- as.integer(pdcl.count.table[,c]) }
 
 ######### Prepare DESeqDataSet object for Analysis
 count.data <- merge(astrocyte.dt, pdcl.count.table)
