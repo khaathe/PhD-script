@@ -28,10 +28,15 @@ save.dir <- "/home/spinicck/PhD/Data/PDCL/limma/"
 for ( i in 1:(nb.samples-1) ){
   for (j in (i+1):nb.samples){
     p.to.p.tpm <- pdcl.tpm[,c(i,j)]
+    res.name <- paste0("limma_" ,colnames(p.to.p.tpm)[1], "_vs_", colnames(p.to.p.tpm)[2])
+    message("Limma Analysis : ", res.name)
     fit <- lmFit(p.to.p.tpm)
     fit <- eBayes(fit)
-    res.name <- paste0(colnames(p.to.p.tpm)[1], "_vs_", colnames(p.to.p.tpm)[2])
     p.to.p.de.result[[res.name]] <- fit
-    write.csv(topTable(fit, number = nrow(pdcl.tpm)), file = paste0(save.dir,res.name, ".csv"))
+    de.gene.table <- topTable(fit, number = nrow(pdcl.tpm))
+    # Rename the column so that the logFoldChange, p-value and p-value adjusted column names are the same
+    # between DESeq2 and Limma for further analysis
+    colnames(de.gene.table) <- c("log2FoldChange","AveExpr","t","pvalue","padj","B")
+    write.csv(de.gene.table, file = paste0(save.dir,res.name, ".csv"))
   }
 }
