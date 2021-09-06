@@ -1,21 +1,16 @@
+setwd("/home/spinicck/PhD/")
+
 ######### Remove every variable in memory
 rm(list = ls())
 
 ######## Load Library needed
 library(DESeq2)
 
-######### Source all functions
-rfun_dir <- "~/Bureau/EnrichmentAnalysis/Script/R/function/"
-for(f in list.files(rfun_dir)) {
-  source(paste0(rfun_dir, f, ""))
-}
-rm(f, rfun_dir)
-
 ######### Load PDCL DataBase
 
 # Prepare count table with all PDCL samples and write a txt file
 # Uncoment this code only to create a count table or update it 
-# pdcl.db.dir <- "/home/spinicck/PhD/Data/PDCL/data_Annabelle/"
+# pdcl.db.dir <- "Data/PDCL/data_Annabelle/"
 # pdcl.files.name <- list.files(path = pdcl.db.dir)
 # pdcl.samples.name <- sub(".genes.results", "", pdcl.files.name)
 # pdcl.count.table <- read.table(paste0(pdcl.db.dir, pdcl.files.name[1]), header = T, sep = "\t", as.is = "gene_id")
@@ -27,12 +22,12 @@ rm(f, rfun_dir)
 #   colnames(count.table)[2] <- pdcl.samples.name[i]
 #   pdcl.count.table <- merge(pdcl.count.table, count.table)
 # }
-# write.table(pdcl.count.table, file = "/home/spinicck/PhD/Data/PDCL/lignees_count_genes_PDCL.txt",
+# write.table(pdcl.count.table, file = "Data/PDCL/lignees_count_genes_PDCL.txt",
 #             sep = "\t", row.names = F, col.names = T)
 
 # Load the PDCL count table
 # Disabled check.names otherwise it will an X as column names aren't valid according to R
-pdcl.count.table <- read.table("/home/spinicck/PhD/Data/PDCL/lignees_count_genes_PDCL.txt", 
+pdcl.count.table <- read.table("Data/PDCL/lignees_count_genes_PDCL.txt", 
                                sep = "\t", header = T, as.is = "gene_id", check.names = F, row.names = 1)
 # R use the type numeric instead of integer when reading the count table which throw an error later with DESeq2
 # Here we convert all numeric column into integers
@@ -47,13 +42,16 @@ deseq2.res.list <- list()
 
 # Perform a differential analysis for each patient in the database against the others
 for ( patient in colnames(pdcl.count.table) ){
+  message("#### DESeq2 Analysis for : ", patient)
   col.data.copy <- col.data
+  # each loop we "select" a patient to compare against the entire PDCL database
   col.data.copy[patient, "condition"] <- "selected"
   dds <- DESeqDataSetFromMatrix(countData = pdcl.count.table, colData = col.data.copy, design = ~condition)
   dds <- DESeq(dds)
   res <- results(dds, alpha = 0.05)
   deseq2.res.list[[patient]] <- res # store the result in a list for later data propcessing
-  write.csv(as.data.frame(res), file = paste0("/home/spinicck/PhD/Data/PDCL/deseq2-analysis/deseq2_", patient, "_vs_pdcl.csv"))
+  res.file <- paste0("Result/PDCL/deseq2/deseq2_", patient, "_vs_pdcl.csv")
+  message("Writing result to file : ", res.file)
+  write.csv(as.data.frame(res), file = res.file)
+  message("Done !")
 }
-rm(patient, dds, col.data.copy, res)
-
