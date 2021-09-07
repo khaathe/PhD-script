@@ -1,18 +1,13 @@
+setwd("/home/spinicck/PhD/")
+
 ######### Remove every variable in memory
 rm(list = ls())
 
 ######## Load Library needed
 library(DESeq2)
 
-######### Source all functions
-rfun_dir <- "~/Bureau/EnrichmentAnalysis/Script/R/function/"
-for(f in list.files(rfun_dir)) {
-  source(paste0(rfun_dir, f, ""))
-}
-rm(f, rfun_dir)
-
 ######### Load controls
-astrocyte.file <- "/home/spinicck/PhD/Data/PDCL/Control/astrocyte/GSE109001_counts.txt"
+astrocyte.file <- "Data/PDCL/Control/astrocyte/GSE109001_counts.txt"
 astrocyte.dt <- read.table(astrocyte.file, header = T, sep = "\t", as.is = c("id", "symbol"))
 # Only keep those samples
 control.samples.names <- c("AF22_NES_Astro_Br1_d29_37_S46","AF22_NES_Astro_Br2_d29_38_S56","AF22_NES_Astro_Br3_d29_39_S66",
@@ -34,9 +29,11 @@ astrocyte.dt <- astrocyte.dt[ !(astrocyte.dt$gene_id %in% non.uniq.gene.id), ]
 # pdcl.samples.name <- sub(".genes.results", "", pdcl.files.name)
 # pdcl.count.table <- read.table(paste0(pdcl.db.dir, pdcl.files.name[1]), header = T, sep = "\t", as.is = "gene_id")
 # pdcl.count.table <- pdcl.count.table[, c("gene_id", "expected_count")]
+# pdcl.count.table$expected_count <- as.integer(pdcl.count.table$expected_count)
 # colnames(pdcl.count.table)[2] <- pdcl.samples.name[1]
 # for ( i in  2:length(pdcl.files.name) ){
 #   count.table <- read.table(paste0(pdcl.db.dir, pdcl.files.name[i]), header = T, sep = "\t",as.is = "gene_id")
+#   count.table$expected_count <- as.integer(count.table$expected_count)
 #   count.table <- count.table[, c("gene_id", "expected_count")]
 #   colnames(count.table)[2] <- pdcl.samples.name[i]
 #   pdcl.count.table <- merge(pdcl.count.table, count.table)
@@ -48,21 +45,31 @@ astrocyte.dt <- astrocyte.dt[ !(astrocyte.dt$gene_id %in% non.uniq.gene.id), ]
 ## Load the PDCL count table
 # Disabled check.names otherwise it will an X as column names aren't valid according to R
 pdcl.count.table <- read.table("/home/spinicck/PhD/Data/PDCL/lignees_count_genes_PDCL.txt", sep = "\t", header = T, as.is = "gene_id", check.names = F)
-# R use the type numeric instead of integer when reading the count table which throw an error later with DESeq2
-# Here we convert all numeric column into integers
-for (c in colnames(pdcl.count.table)) { pdcl.count.table[, c] <- as.integer(pdcl.count.table[,c]) }
+pdcl.samples.name <- colnames(pdcl.count.table)[-1]
 
-######### Prepare DESeqDataSet object for Analysis
+######### Prepare Object needed by DESeq2 for Analysis
 count.data <- merge(astrocyte.dt, pdcl.count.table)
 row.names(count.data) <- count.data$gene_id
 count.data <- as.matrix(count.data[,-1])
-control.samples <- colnames(astrocyte.dt[,-1])
-pdcl.samples <- colnames(pdcl.count.table[,-1])
-col.data <- data.frame(row.names = c(control.samples, pdcl.samples), condition=c(rep("control", length(control.samples)), rep("pdcl", length(pdcl.samples))))
+condition.vect <- c(rep("control", length(control.samples.names)), rep("pdcl", length(pdcl.samples.name)))
+col.data <- data.frame(sample = c(control.samples.names, pdcl.samples.name), condition=condition.vect)
 col.data$condition <- as.factor(col.data$condition)
-dds <- DESeqDataSetFromMatrix(countData = count.data, colData = col.data, design = ~condition)
+deseq2.res.list <- list()
 
-####### Run differential expression analysis
-dds <- DESeq(dds)
-res <- results(dds, alpha = 0.05)
-write.csv(as.data.frame(res), file = "/home/spinicck/PhD/Data/PDCL/pdcl_vs_control.csv")
+######### Differential Analysis
+
+# Perform a differential analysis for each patient in the database against the others
+for ( patient in pdcl.samples.name ){
+  message("#### DESeq2 Analysis for : ", patient)
+  dataset.samples <- c(control.samples.names, patient)
+  dataset.matrix <- count.data[,dataset.samples]
+  dataset.coldata <- col.data[ col.data$sample %in% dataset.samples, ]
+  dds <- DESeqDataSetFromMatrix(countData = dataset.matrix, colData = dataset.coldata, design = ~condition)
+  dds <- DESeq(dds)
+  res <- results(dds, alpha = 0.05)
+  deseq2.res.list[[patient]] <- res # store the result in a list for later data propcessing
+  res.file <- paste0("Result/PDCL/deseq2/deseq2_", patient, "_vs_control.csv")
+  message("Writing result to file : ", res.file)
+  write.csv(as.data.frame(res), file = res.file)
+  message("Done !")
+}
