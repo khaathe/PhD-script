@@ -17,10 +17,10 @@ reactome.gmt.token <- "gp__HCf5_1G7e_SCI"
 bioplanet.gmt.token <- "gp__7tZx_iEOw_ros"
 
 # run gost analysis with reactome and bioplanet GMT files for a list of DE analysis result
-run.gost <- function(f, reactome.gmt, bioplanet.gmt){
+run.gost <- function(f, reactome.gmt, bioplanet.gmt, filtering.function){
   message("###### G:Profiler Analysis for : ", f)
   genes.symbol <- read.table(f, header = T, row.names = 1, sep = ",")
-  genes.symbol <- genes.symbol[genes.symbol$padj<1,]
+  genes.symbol <- filtering.function(genes.symbol)
   genes.symbol <- row.names(genes.symbol)
   res <- list()
   res[["reactome"]] <- gost(query = genes.symbol, organism = reactome.gmt, user_threshold = 0.05, 
@@ -62,7 +62,9 @@ get.analysis.name <- function(file.name){
 deseq2.res.dir <- "Result/PDCL/deseq2/"
 deseq2.res.files <- list.files(deseq2.res.dir)
 deseq2.res.files <- paste0(deseq2.res.dir, deseq2.res.files)
-deseq2.gostres <- lapply(deseq2.res.files, run.gost, reactome.gmt.token, bioplanet.gmt.token)
+deseq2.gostres <- lapply(deseq2.res.files[1], run.gost, reactome.gmt.token, bioplanet.gmt.token, function(x) { 
+    as.data.frame(x) %>% filter(padj<0.1 & !is.na(padj))
+})
 names(deseq2.gostres) <- sapply(deseq2.res.files, get.analysis.name)
 saveRDS(deseq2.gostres, file = "Result/gost_deseq2_genes.rds")
 deseq2.enrichment <- lapply(deseq2.gostres, convert.gost.to.gem)
@@ -73,7 +75,9 @@ save.gem.list.to.txt(deseq2.enrichment, "Result/PDCL/gprofiler/deseq2/", "deseq2
 limma.res.dir <- "Result/PDCL/limma/"
 limma.res.files <- list.files(limma.res.dir)
 limma.res.files <- paste0(limma.res.dir, limma.res.files)
-limma.gostres <- lapply(limma.res.files, run.gost, reactome.gmt.token, bioplanet.gmt.token)
+limma.gostres <- lapply(limma.res.files, run.gost, reactome.gmt.token, bioplanet.gmt.token, function(x) { 
+  as.data.frame(x) %>% filter(padj<0.1 & !is.na(padj))
+})
 names(limma.gostres) <- sapply(limma.res.files, get.analysis.name)
 saveRDS(limma.gostres, file = "Result/gost_limma_genes.rds")
 limma.enrichment <- lapply(limma.gostres, convert.gost.to.gem)
