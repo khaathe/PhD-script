@@ -7,50 +7,25 @@ rm(list = ls())
 library(DESeq2)
 
 ######### Load controls
-astrocyte.file <- "Data/PDCL/Control/astrocyte/GSE109001_counts.txt"
+astrocyte.file <- "Data/PDCL/astrocyte_GSE109001_counts_unique_genes_samples_filtered.txt"
 astrocyte.dt <- read.table(astrocyte.file, header = T, sep = "\t", as.is = c("id", "symbol"))
-# Only keep those samples
 control.samples.names <- c("AF22_NES_Astro_Br1_d29_37_S46","AF22_NES_Astro_Br2_d29_38_S56","AF22_NES_Astro_Br3_d29_39_S66",
              "CCF.STTG1_p24_Br1_S16","CCF.STTG1_p24_Br2_S17","CCF.STTG1_p24_Br3_S18",
              "CDIAstrocytes_p2_Br1_S19","CDIAstrocytes_p2_Br2_S20","CDIAstrocytes_p2_Br3_S21",
              "phaAstrocyte_p2_Br1_S1","phaAstrocyte_p2_Br2_S2","phaAstrocyte_p2_Br3_S3")
-astrocyte.dt <- astrocyte.dt[, c("symbol",control.samples.names)]
-colnames(astrocyte.dt) <- c("gene_id", control.samples.names)
-# Remove non unique gene names from the dataset
-non.uniq.gene.id <- unique(astrocyte.dt$gene_id[!isUnique(astrocyte.dt$gene_id)])
-astrocyte.dt <- astrocyte.dt[ !(astrocyte.dt$gene_id %in% non.uniq.gene.id), ]
 
 ######### Load PDCL DataBase
-
-# Prepare count table with all PDCL samples and write a txt file
-# Uncoment this code only to create a count table or update it 
-# pdcl.db.dir <- "/home/spinicck/PhD/Data/PDCL/data_Annabelle/"
-# pdcl.files.name <- list.files(path = pdcl.db.dir)
-# pdcl.samples.name <- sub(".genes.results", "", pdcl.files.name)
-# pdcl.count.table <- read.table(paste0(pdcl.db.dir, pdcl.files.name[1]), header = T, sep = "\t", as.is = "gene_id")
-# pdcl.count.table <- pdcl.count.table[, c("gene_id", "expected_count")]
-# pdcl.count.table$expected_count <- as.integer(pdcl.count.table$expected_count)
-# colnames(pdcl.count.table)[2] <- pdcl.samples.name[1]
-# for ( i in  2:length(pdcl.files.name) ){
-#   count.table <- read.table(paste0(pdcl.db.dir, pdcl.files.name[i]), header = T, sep = "\t",as.is = "gene_id")
-#   count.table$expected_count <- as.integer(count.table$expected_count)
-#   count.table <- count.table[, c("gene_id", "expected_count")]
-#   colnames(count.table)[2] <- pdcl.samples.name[i]
-#   pdcl.count.table <- merge(pdcl.count.table, count.table)
-# }
-# write.table(pdcl.count.table, file = "/home/spinicck/PhD/Data/PDCL/lignees_count_genes_PDCL.txt",
-#             sep = "\t", row.names = F, col.names = T)
-
-
 ## Load the PDCL count table
 # Disabled check.names otherwise it will an X as column names aren't valid according to R
 pdcl.count.table <- read.table("/home/spinicck/PhD/Data/PDCL/lignees_count_genes_PDCL.txt", sep = "\t", header = T, as.is = "gene_id", check.names = F)
-pdcl.samples.name <- colnames(pdcl.count.table)[-1]
+pdcl.samples.name <- c("4339-p21","4371-p37","5706-p14","6190-p43","6240-p12","7015-p17","7060-p18",
+                           "7142-p14","N13-1300","N13-1520-p9","N14-0072","N14-0870","N14-1208","N14-1525",
+                           "N15_0460","N15_0516","N15-0385","N15-0661","N16_0535","N16-0240")
 
 ######### Prepare Object needed by DESeq2 for Analysis
-count.data <- merge(astrocyte.dt, pdcl.count.table)
-row.names(count.data) <- count.data$gene_id
-count.data <- as.matrix(count.data[,-1])
+count.data <- merge(astrocyte.dt, pdcl.count.table, by.x = "symbol", by.y = "gene_id")
+row.names(count.data) <- count.data$symbol
+count.data <- count.data[,-2:-1]
 condition.vect <- c(rep("control", length(control.samples.names)), rep("pdcl", length(pdcl.samples.name)))
 col.data <- data.frame(sample = c(control.samples.names, pdcl.samples.name), condition=condition.vect)
 col.data$condition <- as.factor(col.data$condition)
@@ -73,3 +48,5 @@ for ( patient in pdcl.samples.name ){
   write.csv(as.data.frame(res), file = res.file)
   message("Done !")
 }
+
+saveRDS(deseq2.res.list, file = "Result/PDCL/deseq2_pdcl_vs_control.rds")
