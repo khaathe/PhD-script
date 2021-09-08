@@ -1,15 +1,11 @@
+setwd("/home/spinicck/PhD/")
+
 ######### Remove every variable in memory
 rm(list = ls())
 
 ######## Load Library needed
 library(gprofiler2)
-
-######### Source all functions
-rfun_dir <- "~/Bureau/EnrichmentAnalysis/Script/R/function/"
-for(f in list.files(rfun_dir)) {
-  source(paste0(rfun_dir, f, ""))
-}
-rm(f, rfun_dir)
+library(dplyr)
 
 ######### Upload GMT File before running G:Profiler Enrichment Analysis
 # This portion is commented because the file are already uploaded, use the gmt token instead
@@ -20,48 +16,65 @@ rm(f, rfun_dir)
 reactome.gmt.token <- "gp__HCf5_1G7e_SCI"
 bioplanet.gmt.token <- "gp__7tZx_iEOw_ros"
 
-######### Load all DE Analysis Results
-deseq2.res.dir <- "/home/spinicck/PhD/Data/PDCL/deseq2-analysis/"
-deseq2.res.files <- list.files(deseq2.res.dir)
-deseq2.res.files <- paste0(deseq2.res.dir, deseq2.res.files)
-limma.res.dir <- "/home/spinicck/PhD/Data/PDCL/limma/"
-limma.res.files <- list.files(limma.res.dir)
-limma.res.files <- paste0(limma.res.dir, limma.res.files)
-res.de.files <- c(deseq2.res.files, limma.res.files)
-
-######### Run G:Profiler Enrichment Analysis
-gostres <- lapply(res.de.files, function(f){
+# run gost analysis with reactome and bioplanet GMT files for a list of DE analysis result
+run.gost <- function(f, reactome.gmt, bioplanet.gmt){
   message("###### G:Profiler Analysis for : ", f)
   genes.symbol <- read.table(f, header = T, row.names = 1, sep = ",")
   genes.symbol <- genes.symbol[genes.symbol$padj<1,]
   genes.symbol <- row.names(genes.symbol)
   res <- list()
-  res[["reactome"]] <- gost(query = genes.symbol, organism = reactome.gmt.token, user_threshold = 0.05, 
-                                significant = F,  correction_method = "fdr")
-  res[["bioplanet"]] <- gost(query = genes.symbol, organism = bioplanet.gmt.token, user_threshold = 0.05,
-                                 significant = F, correction_method = "fdr")
+  res[["reactome"]] <- gost(query = genes.symbol, organism = reactome.gmt, user_threshold = 0.05, 
+                            significant = F,  correction_method = "fdr")
+  res[["bioplanet"]] <- gost(query = genes.symbol, organism = bioplanet.gmt, user_threshold = 0.05,
+                             significant = F, correction_method = "fdr")
   return(res)
-})
+}
 
-analysis.name <- sub("\\.\\w+", "", res.de.files, perl = T)
-analysis.name <- sub("/.+/(deseq2|limma)_", "", analysis.name, perl = T, ignore.case = T)
-names(gostres) <- analysis.name
-
-######### Convert G:Profiler result into more friendly enrichment result
-# We keep the Gost result as is in case for later use
-enrichment.res <- lapply(gostres,function(res){
+# Convert a list of Gost Analysis result to a list of Data Frame which is similar to Generic Enrichment Map (GEM)
+convert.gost.to.gem <- function(res){
   lapply(res, function(x){
     x$result %>% dplyr::rename(pathway_name = term_id,pathway_id = term_name, pathway_size = term_size, p_value_adjusted = p_value) %>%
       select(pathway_id,pathway_name, p_value_adjusted,source, pathway_size, query_size,intersection_size)
   })
-})
-names(enrichment.res) <- analysis.name
+}
 
-######### Save the more friendly enrichment result into more useful text file
-save.dir <- "/home/spinicck/PhD/Data/PDCL/gprofiler/"
-for (analysis in names(enrichment.res) ) {
-  for (db.source in names(enrichment.res[[analysis]]) ){
-    f <- paste0(save.dir, "gprofiler_", analysis, "_", db.source, ".csv")
-    write.table(enrichment.res[[analysis]][[db.source]], file = f, row.names = F, col.names = T, sep = "\t")
+# Save a list of Generic Enrichment Map to tab delimited txt files
+# Files name conttain the tool used for differential expression analysis, which patient
+# has been compared to the control (analysis), the source of the gmt file (db.source)
+save.gem.list.to.txt <- function(gem.list, save.dir, de.analysis){
+  for (analysis in names(gem.list) ) {
+    for (db.source in names(gem.list[[analysis]]) ){
+      f <- paste0(save.dir, "gprofiler_", de.analysis, "_",analysis, "_", db.source, ".csv")
+      write.table(gem.list[[analysis]][[db.source]], file = f, row.names = F, col.names = T, sep = "\t")
+    }
   }
 }
+
+# Remove path and file extension from the file name and return only the analysis name
+# which is in the form : patientID_vs_control
+get.analysis.name <- function(file.name){
+  analysis.name <- sub("\\.\\w+", "", file.name, perl = T, ignore.case = T)
+  analysis.name <- sub(".+/(deseq2|limma)_", "", analysis.name, perl = T, ignore.case = T)
+  return(analysis.name)
+}
+
+######### RUn G:Profiler for DESeq2 result
+deseq2.res.dir <- "Result/PDCL/deseq2/"
+deseq2.res.files <- list.files(deseq2.res.dir)
+deseq2.res.files <- paste0(deseq2.res.dir, deseq2.res.files)
+deseq2.gostres <- lapply(deseq2.res.files, run.gost, reactome.gmt.token, bioplanet.gmt.token)
+names(deseq2.gostres) <- sapply(deseq2.res.files, get.analysis.name)
+saveRDS(deseq2.gostres, file = "Result/gost_deseq2_genes.rds")
+deseq2.enrichment <- lapply(deseq2.gostres, convert.gost.to.gem)
+save.gem.list.to.txt(deseq2.enrichment, "Result/PDCL/gprofiler/deseq2/", "deseq2")
+
+
+######### RUn G:Profiler for Limma result
+limma.res.dir <- "Result/PDCL/limma/"
+limma.res.files <- list.files(limma.res.dir)
+limma.res.files <- paste0(limma.res.dir, limma.res.files)
+limma.gostres <- lapply(limma.res.files, run.gost, reactome.gmt.token, bioplanet.gmt.token)
+names(limma.gostres) <- sapply(limma.res.files, get.analysis.name)
+saveRDS(limma.gostres, file = "Result/gost_limma_genes.rds")
+limma.enrichment <- lapply(limma.gostres, convert.gost.to.gem)
+save.gem.list.to.txt(limma.enrichment, "Result/PDCL/gprofiler/limma/", "limma")
