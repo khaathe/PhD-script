@@ -62,7 +62,7 @@ get.analysis.name <- function(file.name){
 deseq2.res.dir <- "Result/PDCL/deseq2/"
 deseq2.res.files <- list.files(deseq2.res.dir)
 deseq2.res.files <- paste0(deseq2.res.dir, deseq2.res.files)
-deseq2.gostres <- lapply(deseq2.res.files[1], run.gost, reactome.gmt.token, bioplanet.gmt.token, function(x) { 
+deseq2.gostres <- lapply(deseq2.res.files, run.gost, reactome.gmt.token, bioplanet.gmt.token, function(x) { 
     as.data.frame(x) %>% filter(padj<0.1 & !is.na(padj))
 })
 names(deseq2.gostres) <- sapply(deseq2.res.files, get.analysis.name)
