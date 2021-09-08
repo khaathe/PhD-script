@@ -76,7 +76,7 @@ limma.res.dir <- "Result/PDCL/limma/"
 limma.res.files <- list.files(limma.res.dir)
 limma.res.files <- paste0(limma.res.dir, limma.res.files)
 limma.gostres <- lapply(limma.res.files, run.gost, reactome.gmt.token, bioplanet.gmt.token, function(x) { 
-  as.data.frame(x) %>% filter(padj<0.1 & !is.na(padj))
+  as.data.frame(x) %>% filter(adj.P.Val<0.1 & !is.na(adj.P.Val))
 })
 names(limma.gostres) <- sapply(limma.res.files, get.analysis.name)
 saveRDS(limma.gostres, file = "Result/gost_limma_genes.rds")
