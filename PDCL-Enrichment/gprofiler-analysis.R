@@ -66,7 +66,7 @@ deseq2.gostres <- lapply(deseq2.res.files[1], run.gost, reactome.gmt.token, biop
     as.data.frame(x) %>% filter(padj<0.1 & !is.na(padj))
 })
 names(deseq2.gostres) <- sapply(deseq2.res.files, get.analysis.name)
-saveRDS(deseq2.gostres, file = "Result/gost_deseq2_genes.rds")
+saveRDS(deseq2.gostres, file = "Result/PDCL/gost_deseq2_genes.rds")
 deseq2.enrichment <- lapply(deseq2.gostres, convert.gost.to.gem)
 save.gem.list.to.txt(deseq2.enrichment, "Result/PDCL/gprofiler/deseq2/", "deseq2")
 
@@ -79,6 +79,6 @@ limma.gostres <- lapply(limma.res.files, run.gost, reactome.gmt.token, bioplanet
   as.data.frame(x) %>% filter(adj.P.Val<0.1 & !is.na(adj.P.Val))
 })
 names(limma.gostres) <- sapply(limma.res.files, get.analysis.name)
-saveRDS(limma.gostres, file = "Result/gost_limma_genes.rds")
+saveRDS(limma.gostres, file = "Result/PDCL/gost_limma_genes.rds")
 limma.enrichment <- lapply(limma.gostres, convert.gost.to.gem)
 save.gem.list.to.txt(limma.enrichment, "Result/PDCL/gprofiler/limma/", "limma")
