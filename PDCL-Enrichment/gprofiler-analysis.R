@@ -9,24 +9,31 @@ library(dplyr)
 
 ######### Upload GMT File before running G:Profiler Enrichment Analysis
 # This portion is commented because the file are already uploaded, use the gmt token instead
-# upload_GMT_file(gmtfile = "/home/spinicck/PhD/Data/gene-set/reactome_pathways_symbol.gmt")
-# upload_GMT_file(gmtfile = "/home/spinicck/PhD/Data/gene-set/bioplanet_pathways_symbol.gmt")
+# reactome.gmt.token <- upload_GMT_file(gmtfile = "Data/gene-set/jorge-gmt/reactome_gmt_symbol_no_unwanted_categ_no_less_10.gmt")
+# bioplanet.gmt.token <- upload_GMT_file(gmtfile = "Data/gene-set/jorge-gmt/bioplanet_gmt_symbol_no_unwanted_categ_no_less_10.gmt")
 
 ######### Define GMT token to use for Enrichment Analysis
-reactome.gmt.token <- "gp__HCf5_1G7e_SCI"
-bioplanet.gmt.token <- "gp__7tZx_iEOw_ros"
+reactome.gmt.token <- "gp__Nqmx_yxm7_37U"
+bioplanet.gmt.token <- "gp__vB7V_DT57_yNY"
 
-# run gost analysis with reactome and bioplanet GMT files for a list of DE analysis result
-run.gost <- function(f, reactome.gmt, bioplanet.gmt, filtering.function){
-  message("###### G:Profiler Analysis for : ", f)
-  genes.symbol <- read.table(f, header = T, row.names = 1, sep = ",")
-  genes.symbol <- filtering.function(genes.symbol)
-  genes.symbol <- row.names(genes.symbol)
+run.gost <- function(genes.symbol, reactome.gmt, bioplanet.gmt){
+  message("Running Gost ...")
   res <- list()
   res[["reactome"]] <- gost(query = genes.symbol, organism = reactome.gmt, user_threshold = 0.05, 
                             significant = F,  correction_method = "fdr")
   res[["bioplanet"]] <- gost(query = genes.symbol, organism = bioplanet.gmt, user_threshold = 0.05,
                              significant = F, correction_method = "fdr")
+  return(res)
+}
+
+# run gost analysis with reactome and bioplanet GMT files for a list of DE analysis result
+# the function will read a file and filter the gene according to a filtering function
+run.gost.on.file <- function(f, reactome.gmt, bioplanet.gmt, filtering.function){
+  message("###### G:Profiler Analysis for : ", f)
+  genes.symbol <- read.table(f, header = T, row.names = 1, sep = ",")
+  genes.symbol <- filtering.function(genes.symbol)
+  genes.symbol <- row.names(genes.symbol)
+  res <- run.gost(genes.symbol, reactome.gmt, bioplanet.gmt)
   return(res)
 }
 
@@ -62,7 +69,7 @@ get.analysis.name <- function(file.name){
 deseq2.res.dir <- "Result/PDCL/deseq2/"
 deseq2.res.files <- list.files(deseq2.res.dir)
 deseq2.res.files <- paste0(deseq2.res.dir, deseq2.res.files)
-deseq2.gostres <- lapply(deseq2.res.files, run.gost, reactome.gmt.token, bioplanet.gmt.token, function(x) { 
+deseq2.gostres <- lapply(deseq2.res.files, run.gost.on.file, reactome.gmt.token, bioplanet.gmt.token, function(x) { 
     as.data.frame(x) %>% filter(padj<0.1 & !is.na(padj))
 })
 names(deseq2.gostres) <- sapply(deseq2.res.files, get.analysis.name)
@@ -82,3 +89,19 @@ names(limma.gostres) <- sapply(limma.res.files, get.analysis.name)
 saveRDS(limma.gostres, file = "Result/PDCL/gost_limma_genes.rds")
 limma.enrichment <- lapply(limma.gostres, convert.gost.to.gem)
 save.gem.list.to.txt(limma.enrichment, "Result/PDCL/gprofiler/limma/", "limma")
+
+######### RUn G:Profiler for PENDA result
+penda.res.file <- "Data/PDCL/results_combine.csv"
+penda.res <- read.table(penda.res.file, sep = ";", header = T, row.names = 1, check.names = F)
+pdcl.samples.names <- names(penda.res)
+pdcl.samples.names <- sub(".genes.results", "", pdcl.samples.names, ignore.case = T)
+names(penda.res) <- pdcl.samples.names
+all.pdcl.gene <- row.names(penda.res)
+penda.gost.res <- lapply(penda.res, function(patient){
+  gene.list <- all.pdcl.gene[patient != 0]
+  res <- run.gost(gene.list, reactome.gmt.token, bioplanet.gmt.token)
+  return(res)
+})
+saveRDS(penda.gost.res, file = "Result/PDCL/gost_penda_genes.rds")
+penda.enrichment <- lapply(penda.gost.res, convert.gost.to.gem)
+save.gem.list.to.txt(penda.enrichment, "Result/PDCL/gprofiler/penda/", "penda")
