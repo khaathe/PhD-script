@@ -36,8 +36,7 @@ save.gem.list.to.txt <- function(gem.list, save.dir, de.analysis){
   for (analysis in names(gem.list) ) {
     for (db.source in names(gem.list[[analysis]]) ){
       f <- paste0(save.dir, "gsea_", de.analysis, "_",analysis, "_", db.source, ".txt")
-      gem.dt <- as.data.frame(gem.list[[analysis]][[db.source]]) %>% mutate(leadingEdge=sapply(leadingEdge, function(e){ paste0(e, collapse = ", ")}))
-      write.table(gem.dt, file = f, row.names = F, col.names = T, sep = "\t", quote=F)
+      write.table(gem.list[[analysis]][[db.source]], file = f, row.names = F, col.names = T, sep = "\t", quote=F)
     }
   }
 }
@@ -54,8 +53,8 @@ get.analysis.name <- function(file.name){
 # as described in GEM documentation (https://enrichmentmap.readthedocs.io/en/latest/FileFormats.html#generic-results-files)
 convert.gsea.to.gem <- function(res){
   lapply(res, function(x){
-    x$result %>% dplyr::rename(pathway_id = term_id, description = term_name, genes = intersection) %>%
-      mutate(fdr = p_value, phenotype = 1) %>%
+    x %>% dplyr::rename(pathway_id = pathway, p_value= pval, fdr=padj) %>%
+      mutate(phenotype = sign(ES), description = "", genes = sapply(leadingEdge, function(e){ paste0(e, collapse = ",")} ) ) %>%
       select(pathway_id,description, p_value, fdr, phenotype, genes)
   })
 }
@@ -73,7 +72,8 @@ deseq2.gsea <- lapply(deseq2.res.files, run.gsea, reactome.gmt, bioplanet.gmt, f
 })
 names(deseq2.gsea) <- sapply(deseq2.res.files, get.analysis.name)
 saveRDS(deseq2.gsea, file = "Result/PDCL/gsea_deseq2_genes.rds")
-save.gem.list.to.txt(deseq2.gsea, "Result/PDCL/gsea/deseq2/", "deseq2")
+deseq2.gem <- lapply(deseq2.gsea, convert.gsea.to.gem)
+save.gem.list.to.txt(deseq2.gem, "Result/PDCL/gsea/deseq2/", "deseq2")
 
 ######### Run GSEA for Limma result
 limma.res.dir <- "Result/PDCL/limma/"
@@ -88,4 +88,5 @@ limma.gsea <- lapply(limma.res.files, run.gsea, reactome.gmt, bioplanet.gmt, fun
 })
 names(limma.gsea) <- sapply(limma.res.files, get.analysis.name)
 saveRDS(limma.gsea, file = "Result/PDCL/gsea_limma_genes.rds")
-save.gem.list.to.txt(limma.gsea, "Result/PDCL/gsea/limma/", "limma")
+limma.gem <- lapply(limma.gsea, convert.gsea.to.gem)
+save.gem.list.to.txt(limma.gem, "Result/PDCL/gsea/limma/", "limma")
