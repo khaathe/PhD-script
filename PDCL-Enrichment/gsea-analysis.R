@@ -6,6 +6,7 @@ rm(list = ls())
 ######## Load Library needed
 library(fgsea)
 library(dplyr)
+library(tidyr)
 
 #IMPORTANT!! We must choose a seed to ensure the analysis is reproducible. This is because GSEA uses a 
 #permutation test to span the null distribution of the statistic. Hence, each time we run it, results are 
@@ -55,7 +56,8 @@ convert.gsea.to.gem <- function(res){
   lapply(res, function(x){
     x %>% dplyr::rename(pathway_id = pathway, p_value= pval, fdr=padj) %>%
       mutate(phenotype = sign(ES), description = "", genes = sapply(leadingEdge, function(e){ paste0(e, collapse = ",")} ) ) %>%
-      select(pathway_id,description, p_value, fdr, phenotype, genes)
+      select(pathway_id,description, p_value, fdr, phenotype, genes) %>%
+      tidyr::drop_na()
   })
 }
 
