@@ -40,7 +40,12 @@ filter.gsea.pathways <- function(gsea){
 # Return the deregulated pathways found in both G:Profiler+PENDA and GSEA+DESeq2 analysis
 # in one enrichment method (bioplanet, reactome, ...)
 get.common.deregulated.pathways <- function(gost.penda, gsea.deseq2){
-  common.pathways <- semi_join(gost.penda, gsea.deseq2, by = "pathway_id")
+  common.pathways <- inner_join(gost.penda, gsea.deseq2, by = "pathway_id") %>%
+    dplyr::rename(description_gprofiler = description.x, description_gsea = description.y,
+           genes_gprofiler = genes.x, genes_gsea = genes.y, p_value_gprofiler = p_value.x, p_value_gsea = p_value.y,
+           fdr_gsea = fdr.y, phenotype_gsea = phenotype.y) %>%
+    dplyr::select(pathway_id, description_gprofiler, description_gsea, p_value_gprofiler, p_value_gsea, fdr_gsea, 
+           phenotype_gsea, genes_gprofiler, genes_gsea)
   message("Numer of common deregulated pathways: ", nrow(common.pathways))
   return(common.pathways)
 }
@@ -58,6 +63,18 @@ get.all.common.deregulated.pathways <- function(p, gost.penda, gsea.deseq2, data
   return(element)
 }
 
+# Save the common deregulated pathways to tab delimited txt files
+save.result <- function(pathways.list, save.dir){
+  for (patient in names(pathways.list) ) {
+    for (db.source in names(pathways.list[[patient]]) ){
+      if (nrow(pathways.list[[patient]][[db.source]]) > 0) {
+        f <- paste0(save.dir, "common_deregulated_pathways_", patient, "_", db.source, ".txt")
+        write.table(pathways.list[[patient]][[db.source]], file = f, row.names = F, col.names = T, sep = "\t", quote = F) 
+      }
+    }
+  }
+}
 
 common.deregulated.pathways <- lapply(patient, get.all.common.deregulated.pathways, gost.penda.rds, gsea.deseq2.rds, database)
 names(common.deregulated.pathways) <- patient
+save.result(common.deregulated.pathways, "Result/PDCL/common_pathways/")
