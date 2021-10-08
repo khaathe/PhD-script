@@ -14,7 +14,7 @@ gsea.deseq2.rds <- readRDS("Result/PDCL/gsea_deseq2_genes.rds")
 names(gsea.deseq2.rds) <- gsub("_vs_control", "", names(gsea.deseq2.rds))
 
 patient <-names(gost.penda.rds)
-database <- c("reactome")
+database <- c("bioplanet", "reactome")
 
 # Filter G:Profiler result to keep only pathways deregulated, and turn the result in GEM format
 filter.gprofiler.pathways <- function(gost){
@@ -41,10 +41,9 @@ filter.gsea.pathways <- function(gsea){
 # in one enrichment method (bioplanet, reactome, ...)
 get.common.deregulated.pathways <- function(gost.penda, gsea.deseq2){
   common.pathways <- inner_join(gost.penda, gsea.deseq2, by = "pathway_id") %>%
-    dplyr::rename(description_gprofiler = description.x, description_gsea = description.y,
-           genes_gprofiler = genes.x, genes_gsea = genes.y, p_value_gprofiler = p_value.x, p_value_gsea = p_value.y,
+    dplyr::rename(description = description.x, genes_gprofiler = genes.x, genes_gsea = genes.y, p_value_gprofiler = p_value.x, p_value_gsea = p_value.y,
            fdr_gsea = fdr.y, phenotype_gsea = phenotype.y) %>%
-    dplyr::select(pathway_id, description_gprofiler, description_gsea, p_value_gprofiler, p_value_gsea, fdr_gsea, 
+    dplyr::select(pathway_id, description, p_value_gprofiler, p_value_gsea, fdr_gsea, 
            phenotype_gsea, genes_gprofiler, genes_gsea)
   message("Numer of common deregulated pathways: ", nrow(common.pathways))
   return(common.pathways)
