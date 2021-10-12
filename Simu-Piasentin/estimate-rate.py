@@ -39,7 +39,7 @@ SensATP =  1.0
 R_cell = 8.41
 V_cell = 4/3 * math.pi * math.pow(R_cell, 3)
 S_cell = 4 * math.pi * math.pow(R_cell, 2)
-V_extracell = 8000
+V_extracell = 2e11
 
 """
     VMAXAcL = 0.0057480000000000005
@@ -60,6 +60,8 @@ HCO3_extra_initial = MW_HCO3 / MW_CO2 * CO2_extra_initial * pow(10.0, pH_extra -
 
 x = [CO2_intra_initial, H_intra_initial, 
     HCO3_intra_initial, CO2_extra_initial, H_extra_initial, HCO3_extra_initial]
+
+print(x)
 
 def ph_ode (t, x, VMAXAcL, VMAXNHE, VMAXTHCO3, VMAXCA9):
     dxdt = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
@@ -99,7 +101,7 @@ def ph_ode (t, x, VMAXAcL, VMAXNHE, VMAXTHCO3, VMAXCA9):
 
     # intracellular hydrogen dynamics
     dxdt[1] = (
-        SensATP * gAcL * MW_H / MW_AcL * MW_H * V_cell * 1e-6 # internal rate
+        SensATP * gAcL * MW_H / MW_AcL * MW_H # internal rate
         + k1 * x[0] * MW_H / MW_CO2 - k2 *x[1] * x[2] * 1000 / (V_cell * MW_HCO3) # chemical equilibrium
         - nu_MCT_in_out + nu_MCT_out_in - nu_NHE_in_out
     )
@@ -136,16 +138,19 @@ u87_file_path = "/home/spinicck/PhD/Data/alaa-experiment/U87_pH_time_regulation.
 f98_file_path = "/home/spinicck/PhD/Data/alaa-experiment/F98_pH_time_regulation.txt"
 u87_df = pd.read_table(u87_file_path, sep="\t", index_col=0)
 
-t_vect = numpy.linspace(0.0, 1.0, num=10000 )
+t_start = 0.0
+t_end = 36000 # 8h -> 28800 s
+dt = 1e-2
+t = numpy.linspace(t_start, t_end, num=int( (t_end-t_start)/dt ) )
 constant_rates = (9.58 * math.pow(10,-5), 5.15 * math.pow(10,-7),  2.02 * math.pow(10,-5), 9.47 * math.pow(10,-2) )
-sol = solve_ivp(ph_ode, [0.0, 1.0], x, t_eval=t_vect, args=constant_rates, method='Radau' )
+sol = solve_ivp(ph_ode, [t_start, t_end], x, t_eval=t, args=constant_rates, method='Radau' )
 
 pHi = []
 pHe = []
 for mHi in sol.y[1]: pHi.append( -math.log10(1000 * mHi / (V_cell * MW_H) ) )
 for mHe in sol.y[4]: pHe.append( -math.log10(1000 * mHe / (V_extracell * MW_H) ) )
 
-plt.plot(sol.t, pHi)
-plt.plot(sol.t, pHe)
+plt.plot(t, pHi)
+plt.plot(t, pHe)
 plt.legend(['pHi', 'pHe'])
 plt.show()
