@@ -33,10 +33,10 @@ g_THCO3 = 4.2
 pHi0_THCO3 = 6.90
 K_mCA9 = 7.2e-3
 d_CA9 = 7.3
-pKa = 6.12039110885758
+pKa = -math.log10(k1 / k2)         
 SensO2 =  1.0
 SensATP =  1.0
-R_cell = 8.41
+R_cell = 6.55       
 V_cell = 4/3 * math.pi * math.pow(R_cell, 3)
 S_cell = 4 * math.pi * math.pow(R_cell, 2)
 V_extracell = 2e11
@@ -47,24 +47,11 @@ V_extracell = 2e11
     VMAXTHCO3 = 0.0012120000000000002
     VMAXCA9 = 5.6820000000000004
 """
-# starting conditions
-pH_cell = 7.40
-pH_extra = 7.4
-CO2_intra_initial = 5.39 * pow(10.0, -5) * (4.0 / 3.0 * math.pi * pow(R_cell, 3.0))
-H_intra_initial = pow(10.0, -pH_cell - 3.0) * (4.0 / 3.0 * math.pi * pow(R_cell, 3.0))
-HCO3_intra_initial = MW_HCO3 / MW_CO2 * CO2_intra_initial * pow(10.0, pH_cell - pKa)
-
-CO2_extra_initial = 5.39 * pow(10.0,-5) * V_extracell
-H_extra_initial = pow(10.0, -pH_extra - 3.0) * V_extracell
-HCO3_extra_initial = MW_HCO3 / MW_CO2 * CO2_extra_initial * pow(10.0, pH_extra - pKa)
-
-x = [CO2_intra_initial, H_intra_initial, 
-    HCO3_intra_initial, CO2_extra_initial, H_extra_initial, HCO3_extra_initial]
-
-print(x)
 
 def ph_ode (t, x, VMAXAcL, VMAXNHE, VMAXTHCO3, VMAXCA9):
+
     dxdt = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
     diff_CO2_in_out = PM_CO2 * ( (x[3] / V_extracell) - (x[0] / V_cell) ) * S_cell
 	
     nu_MCT_in_out = (
@@ -83,9 +70,7 @@ def ph_ode (t, x, VMAXAcL, VMAXNHE, VMAXTHCO3, VMAXCA9):
     )
         
     nu_THCO3_out_in = (
-        SensATP * (0.5) * 
-        (1.0 + math.tanh(l_THCO3 * (-math.log10(1000 * x[4] / (V_extracell * MW_H)) - pHe0_THCO3))) * (0.5) 
-        * (1.0 + math.tanh(g_THCO3 * (pHi0_THCO3 - (-math.log10(1000 * x[2] / (V_cell * MW_H)))))) 
+        SensATP * (0.5) * (1.0 + math.tanh(l_THCO3 * (-math.log10(1000 * x[4] / (V_extracell * MW_H)) - pHe0_THCO3))) * (0.5) * (1.0 + math.tanh(g_THCO3 * (pHi0_THCO3 - (-math.log10(1000 * x[1] / V_cell * MW_H))))) 
         * VMAXTHCO3 * (S_cell) * x[5] / (V_extracell * K_mTHCO3 * MW_HCO3 / 1000 + x[5])
     )
     
@@ -101,7 +86,7 @@ def ph_ode (t, x, VMAXAcL, VMAXNHE, VMAXTHCO3, VMAXCA9):
 
     # intracellular hydrogen dynamics
     dxdt[1] = (
-        SensATP * gAcL * MW_H / MW_AcL * MW_H # internal rate
+        SensATP * gAcL * MW_H / MW_AcL # internal rate
         + k1 * x[0] * MW_H / MW_CO2 - k2 *x[1] * x[2] * 1000 / (V_cell * MW_HCO3) # chemical equilibrium
         - nu_MCT_in_out + nu_MCT_out_in - nu_NHE_in_out
     )
@@ -128,29 +113,55 @@ def ph_ode (t, x, VMAXAcL, VMAXNHE, VMAXTHCO3, VMAXCA9):
     )
     return(dxdt)
     
-def model (x, y, t, dt, VMAXAcL, VMAXNHE, VMAXTHCO3, VMAXCA9):
-    print("Hello World")
+def model (t_start, t_end, dt, constant_rates, pH_cell, pH_extra):
+    t = numpy.arange(t_start, t_end+dt, step=dt,  dtype=float)
+    
+    # Starting conditions
+    CO2_intra_initial = 5.39 * pow(10.0, -5) * (4.0 / 3.0 * math.pi * pow(R_cell, 3.0))
+    H_intra_initial = pow(10.0, -pH_cell - 3.0) * (4.0 / 3.0 * math.pi * pow(R_cell, 3.0))
+    HCO3_intra_initial = MW_HCO3 / MW_CO2 * CO2_intra_initial * pow(10.0, pH_cell - pKa)
+    CO2_extra_initial = 5.39 * pow(10.0,-5) * V_extracell
+    H_extra_initial = pow(10.0, -pH_extra - 3.0) * V_extracell
+    HCO3_extra_initial = MW_HCO3 / MW_CO2 * CO2_extra_initial * pow(10.0, pH_extra - pKa)
+    x_initial = [CO2_intra_initial, H_intra_initial, HCO3_intra_initial, CO2_extra_initial, H_extra_initial, HCO3_extra_initial]
 
-def funfit (df, VMAXAcL, VMAXNHE, VMAXTHCO3, VMAXCA9):
-    print("Hello World")
+    sol = solve_ivp(ph_ode, [t_start, t_end+dt], x_initial, t_eval=t, args=(constant_rates), method='Radau', rtol=1e-10, atol=1e-12 )
+    return(sol)
 
-u87_file_path = "/home/spinicck/PhD/Data/alaa-experiment/U87_pH_time_regulation.txt"
-f98_file_path = "/home/spinicck/PhD/Data/alaa-experiment/F98_pH_time_regulation.txt"
-u87_df = pd.read_table(u87_file_path, sep="\t", index_col=0)
+def funfit (constant_rates_init, pHi_data, pH_cell, pH_extra, t_start, t_end, dt):
+    # 8h -> 28800 s
+    sol = model(t_start, t_end, dt, constant_rates_init, pH_cell, pH_extra)
+    pHi = []
+    for mHi in sol.y[1, ::int(time_step/dt)]: pHi.append(-math.log10(1000 * mHi / (V_cell * MW_H) ))
+    return(pHi-pHi_data)
 
-t_start = 0.0
-t_end = 36000 # 8h -> 28800 s
-dt = 1e-2
-t = numpy.linspace(t_start, t_end, num=int( (t_end-t_start)/dt ) )
-constant_rates = (9.58 * math.pow(10,-5), 5.15 * math.pow(10,-7),  2.02 * math.pow(10,-5), 9.47 * math.pow(10,-2) )
-sol = solve_ivp(ph_ode, [t_start, t_end], x, t_eval=t, args=constant_rates, method='Radau' )
+# u87_file_path = "/home/spinicck/PhD/Data/alaa-experiment/U87_pH_time_regulation.txt"
+# f98_file_path = "/home/spinicck/PhD/Data/alaa-experiment/F98_pH_time_regulation.txt"
+# u87_df = pd.read_table(u87_file_path, sep="\t", index_col=0)
 
-pHi = []
-pHe = []
-for mHi in sol.y[1]: pHi.append( -math.log10(1000 * mHi / (V_cell * MW_H) ) )
-for mHe in sol.y[4]: pHe.append( -math.log10(1000 * mHe / (V_extracell * MW_H) ) )
+constant_rates = ( 0.0057480000000000005, 3.0900000000000006e-05, 0.0012120000000000002, 5.6820000000000004 )
 
-plt.plot(t, pHi)
-plt.plot(t, pHe)
-plt.legend(['pHi', 'pHe'])
+sol = model(0, 60*8, 1e-2/60, constant_rates, 7.4, 7.4)
+pHi_pred = []
+for mHi in sol.y[1]: pHi_pred.append(-math.log10(1000 * mHi / (V_cell * MW_H) ))
+pHe_pred = []
+for mHe in sol.y[4]: pHe_pred.append(-math.log10(1000 * mHe / (V_extracell * MW_H) ))
+plt.plot(sol.t, pHi_pred, label='pHi')
+plt.plot(sol.t, pHe_pred, label='pHe')
 plt.show()
+
+time_step = 1
+# arguments = (u87_df["7.4"].to_numpy(), 7.484051505, 7.4, 0, 8*60, 1e-2)
+# fit = least_squares(funfit, constant_rates, args=arguments, bounds=(0, 100))
+# estimated_rates = fit.x
+# print(estimated_rates)
+
+# pred = model(x, 0.0, 28800, 1e-2, estimated_rates)
+# pHi_pred = []
+# for mHi in pred.y[1, ::int(3600/1e-2)]: pHi_pred.append(-math.log10(1000 * mHi / (V_cell * MW_H) ))
+
+# t =  numpy.arange(0, 28801, step=3600)
+# plt.plot(t, u87_df["7.4"], 'o', label='pH_Data')
+# plt.plot(pred.t, pHi_pred, label='pHi_pred')
+# plt.legend(loc='lower right')
+# plt.show()
