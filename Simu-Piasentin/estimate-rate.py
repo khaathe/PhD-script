@@ -36,7 +36,7 @@ d_CA9 = 7.3
 pKa = -math.log10(k1 / k2)         
 SensO2 =  1.0
 SensATP =  1.0
-R_cell = 6.55       
+R_cell = 8.41       
 V_cell = 4/3 * math.pi * math.pow(R_cell, 3)
 S_cell = 4 * math.pi * math.pow(R_cell, 2)
 V_extracell = 2e11
@@ -73,7 +73,7 @@ def ph_ode (t, x, VMAXAcL, VMAXNHE, VMAXTHCO3, VMAXCA9):
         SensATP * (0.5) * (1.0 + math.tanh(l_THCO3 * (-math.log10(1000 * x[4] / (V_extracell * MW_H)) - pHe0_THCO3))) * (0.5) * (1.0 + math.tanh(g_THCO3 * (pHi0_THCO3 - (-math.log10(1000 * x[1] / V_cell * MW_H))))) 
         * VMAXTHCO3 * (S_cell) * x[5] / (V_extracell * K_mTHCO3 * MW_HCO3 / 1000 + x[5])
     )
-    
+
     nu_CA9 = (3.0 + 2.0 * math.tanh(-d_CA9 * SensO2)) * VMAXCA9 * S_cell * x[3] / (V_extracell * K_mCA9 * MW_CO2 / 1000 + x[3])
 
     # intracellular carbondioxide dynamics
@@ -125,7 +125,7 @@ def model (t_start, t_end, dt, constant_rates, pH_cell, pH_extra):
     HCO3_extra_initial = MW_HCO3 / MW_CO2 * CO2_extra_initial * pow(10.0, pH_extra - pKa)
     x_initial = [CO2_intra_initial, H_intra_initial, HCO3_intra_initial, CO2_extra_initial, H_extra_initial, HCO3_extra_initial]
 
-    sol = solve_ivp(ph_ode, [t_start, t_end+dt], x_initial, t_eval=t, args=(constant_rates), method='Radau', rtol=1e-10, atol=1e-12 )
+    sol = solve_ivp(ph_ode, [t_start, t_end+dt], x_initial, t_eval=t, args=(constant_rates), method='LSODA', rtol=2.5e-14, atol=1e-16 )
     return(sol)
 
 def funfit (constant_rates_init, pHi_data, pH_cell, pH_extra, t_start, t_end, dt):
