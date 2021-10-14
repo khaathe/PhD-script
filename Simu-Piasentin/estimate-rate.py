@@ -1,11 +1,11 @@
 #!/usr/bin/python
 import math
-import matplotlib
 import numpy
 from scipy.optimize import least_squares
 from scipy.integrate import solve_ivp
 import pandas as pd
 import matplotlib.pyplot as plt
+import pickle
 
 MW_H = 1.0
 MW_CO2 = 44.0
@@ -129,39 +129,59 @@ def model (t_start, t_end, dt, constant_rates, pH_cell, pH_extra):
     return(sol)
 
 def funfit (constant_rates_init, pHi_data, pH_cell, pH_extra, t_start, t_end, dt):
-    # 8h -> 28800 s
     sol = model(t_start, t_end, dt, constant_rates_init, pH_cell, pH_extra)
     pHi = []
     for mHi in sol.y[1, ::int(time_step/dt)]: pHi.append(-math.log10(1000 * mHi / (V_cell * MW_H) ))
     return(pHi-pHi_data)
 
-# u87_file_path = "/home/spinicck/PhD/Data/alaa-experiment/U87_pH_time_regulation.txt"
+def make_fit(pHi_data, pHi0, pHe0, t_start, t_end, dt, constant_rates, constant_bounds ):
+    arguments = (pHi_data, pHi0, pHe0, t_start, t_end, dt)
+    fit = least_squares(funfit, constant_rates, args=arguments, bounds=constant_bounds)
+    return(fit)
+
+def to_pH (mH, V):
+    pH = []
+    for m in mH: pH.append(-math.log10(1000 * m / (V * MW_H) ))
+    return( pH )
+
+u87_file_path = "/home/spinicck/PhD/Data/alaa-experiment/U87_pH_time_regulation.txt"
 # f98_file_path = "/home/spinicck/PhD/Data/alaa-experiment/F98_pH_time_regulation.txt"
-# u87_df = pd.read_table(u87_file_path, sep="\t", index_col=0)
+u87_df = pd.read_table(u87_file_path, sep="\t", index_col=0)
 
-constant_rates = ( 0.0057480000000000005, 3.0900000000000006e-05, 0.0012120000000000002, 5.6820000000000004 )
+t = numpy.arange(0,9)*60
 
-sol = model(0, 60*8, 1e-2/60, constant_rates, 7.4, 7.4)
-pHi_pred = []
-for mHi in sol.y[1]: pHi_pred.append(-math.log10(1000 * mHi / (V_cell * MW_H) ))
-pHe_pred = []
-for mHe in sol.y[4]: pHe_pred.append(-math.log10(1000 * mHe / (V_extracell * MW_H) ))
-plt.plot(sol.t, pHi_pred, label='pHi')
-plt.plot(sol.t, pHe_pred, label='pHe')
+constant_rates = [ 0.0057480000000000005, 3.0900000000000006e-05, 0.0012120000000000002, 5.6820000000000004 ]
+constant_bounds = (
+    [0.003, 1.0e-7, 1e-5, 3], 
+    [1e-1, 1e-02, 1e-1, 8]
+) 
+time_step = 60
+arguments = (u87_df["7.4"].to_numpy(), 7.484051505, 7.4, 0, 8*60, 1e-2/60)
+
+fit_res = {} 
+pred_res = {}
+k = 0
+
+for pHe in u87_df.columns:
+    fit = make_fit(u87_df[pHe], 7.484051505, float(pHe), 0, 8*60, 1e-2/60, constant_rates, constant_bounds)
+    fit_res[pHe] = fit
+    pred = model(0, 8*60, 1e-2/60, fit.x, 7.484051505, float(pHe) )
+    pred_res[pHe] = pred
+    pHi_final = -math.log10(1000 * pred.y[1, -1] / (V_cell * MW_H) )
+    pHe_final = -math.log10(1000 * pred.y[4, -1] / (V_extracell * MW_H) )
+    print(f'pHe = {pHe} \nParameters fitted =\n{fit.x}\npHi Final : {pHi_final}, pHe Final : {pHe_final}')
+    k=k+1
+    plt.subplot(8,2,k)
+    plt.plot(pred.t, to_pH(pred.y[1], V_cell), label='pHi model')
+    plt.plot(pred.t, to_pH(pred.y[4], V_extracell), label='pHe model')
+    plt.plot(t, u87_df[pHe], 'o', label='pHi Data')
+    plt.title(f'pHe : {pHe}\nVMAXAcL = {fit.x[0]}, VMAXNHE = {fit.x[1]},\n VMAXTHCO3 = {fit.x[2]}, VMAXCA9 = {fit.x[3]}')
+    plt.legend(loc="upper right")
+
+with open('fit_res_py', 'wb') as out:
+    pickle.dump(fit_res, out)
+
+with open('pred_res_py', 'wb') as out:
+    pickle.dump(pred_res, out)
+
 plt.show()
-
-time_step = 1
-# arguments = (u87_df["7.4"].to_numpy(), 7.484051505, 7.4, 0, 8*60, 1e-2)
-# fit = least_squares(funfit, constant_rates, args=arguments, bounds=(0, 100))
-# estimated_rates = fit.x
-# print(estimated_rates)
-
-# pred = model(x, 0.0, 28800, 1e-2, estimated_rates)
-# pHi_pred = []
-# for mHi in pred.y[1, ::int(3600/1e-2)]: pHi_pred.append(-math.log10(1000 * mHi / (V_cell * MW_H) ))
-
-# t =  numpy.arange(0, 28801, step=3600)
-# plt.plot(t, u87_df["7.4"], 'o', label='pH_Data')
-# plt.plot(pred.t, pHi_pred, label='pHi_pred')
-# plt.legend(loc='lower right')
-# plt.show()
