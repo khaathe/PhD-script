@@ -36,7 +36,7 @@ d_CA9 = 7.3
 pKa = -math.log10(k1 / k2)         
 SensO2 =  1.0
 SensATP =  1.0
-R_cell = 8.41       
+R_cell = 6.7       
 V_cell = 4/3 * math.pi * math.pow(R_cell, 3)
 S_cell = 4 * math.pi * math.pow(R_cell, 2)
 V_extracell = 2e11
@@ -150,38 +150,33 @@ u87_df = pd.read_table(u87_file_path, sep="\t", index_col=0)
 
 t = numpy.arange(0,9)*60
 
-constant_rates = [ 0.0057480000000000005, 3.0900000000000006e-05, 0.0012120000000000002, 5.6820000000000004 ]
+constant_rates = [ 0.005748, 3.09e-05, 0.001212, 5.682 ]
 constant_bounds = (
-    [0.003, 1.0e-7, 1e-5, 3], 
-    [1e-1, 1e-02, 1e-1, 8]
+    [0.003, 1e-5, 1e-5, 3], 
+    [1e-1, 1e-1, 1e-1, 8]
 ) 
 time_step = 60
 arguments = (u87_df["7.4"].to_numpy(), 7.484051505, 7.4, 0, 8*60, 1e-2/60)
 
-fit_res = {} 
-pred_res = {}
 k = 0
 
-for pHe in u87_df.columns:
-    fit = make_fit(u87_df[pHe], 7.484051505, float(pHe), 0, 8*60, 1e-2/60, constant_rates, constant_bounds)
-    fit_res[pHe] = fit
-    pred = model(0, 8*60, 1e-2/60, fit.x, 7.484051505, float(pHe) )
-    pred_res[pHe] = pred
-    pHi_final = -math.log10(1000 * pred.y[1, -1] / (V_cell * MW_H) )
-    pHe_final = -math.log10(1000 * pred.y[4, -1] / (V_extracell * MW_H) )
-    print(f'pHe = {pHe} \nParameters fitted =\n{fit.x}\npHi Final : {pHi_final}, pHe Final : {pHe_final}')
-    k=k+1
-    plt.subplot(8,2,k)
-    plt.plot(pred.t, to_pH(pred.y[1], V_cell), label='pHi model')
-    plt.plot(pred.t, to_pH(pred.y[4], V_extracell), label='pHe model')
-    plt.plot(t, u87_df[pHe], 'o', label='pHi Data')
-    plt.title(f'pHe : {pHe}\nVMAXAcL = {fit.x[0]}, VMAXNHE = {fit.x[1]},\n VMAXTHCO3 = {fit.x[2]}, VMAXCA9 = {fit.x[3]}')
-    plt.legend(loc="upper right")
-
-with open('fit_res_py', 'wb') as out:
-    pickle.dump(fit_res, out)
-
-with open('pred_res_py', 'wb') as out:
-    pickle.dump(pred_res, out)
+with open('fit.txt', 'w') as out:
+    header = "pHe\tVMAXAcL\tVMAXNHE\tVMAXTHCO3\tVMAXCA9"
+    print(header)
+    out.write(header + "\n")
+    for pHe in u87_df.columns:
+        fit = make_fit(u87_df[pHe], 7.484051505, float(pHe), 0, 8*60, 1e-2/60, constant_rates, constant_bounds)
+        pred = model(0, 8*60, 1e-2/60, fit.x, 7.484051505, float(pHe) )
+        pHi_final = -math.log10(1000 * pred.y[1, -1] / (V_cell * MW_H) )
+        pHe_final = -math.log10(1000 * pred.y[4, -1] / (V_extracell * MW_H) )
+        res = f'{pHe}\t{fit.x[0]}\t{fit.x[1]}\t{fit.x[2]}\t{fit.x[3]}'
+        print(res)
+        out.write(res + "\n")
+        k=k+1
+        plt.subplot(6,3,k)
+        plt.plot(pred.t, to_pH(pred.y[1], V_cell), label='pHi model')
+        plt.plot(pred.t, to_pH(pred.y[4], V_extracell), label='pHe model')
+        plt.plot(t, u87_df[pHe], 'o', label='pHi Data')
+        plt.title(f'pHe : {pHe}', loc='left')
 
 plt.show()
