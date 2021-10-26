@@ -137,11 +137,7 @@ int cell(const gsl_vector *x, void *params, gsl_vector *f)
         * (0.5) * (1.0 + tanh(g_THCO3 * (pHi0_THCO3 - (-log10(1000 * m_H_C / (4.0 / 3.0 * Pi * pow(r_C, 3.0) * MW_H)))))) 
         * VMAXTHCO3 * (4.0 * Pi * pow(r_C, 2.0)) * m_HCO3_c / (V_c * K_mTHCO3 * MW_HCO3 / 1000 + m_HCO3_c);
     nu_CA9 = (3.0 + 2.0 * tanh(-d_CA9 * SensO2)) * VMAXCA9 * 4.0 * Pi * pow(r_C, 2.0) * m_CO2_c_old / (V_c * K_mCA9 * MW_CO2 / 1000 + m_CO2_c_old);
-    double r1 = k1 * m_CO2_c_old * MW_H / MW_CO2;
-    double r2 = k2 * m_H_c * m_HCO3_c * 1000 / (V_c * MW_HCO3);
-    double nu_CA9_corrected = nu_CA9 * MW_H / MW_CO2;
-    export_protons = r1 - r2 + nu_MCT_in_out - nu_MCT_out_in + nu_NHE_in_out + nu_CA9_corrected;
-    protons_exported += dt * export_protons;
+    
     double coeff = 1;
 
     //intracellular carbondioxide dynamics
@@ -151,7 +147,7 @@ int cell(const gsl_vector *x, void *params, gsl_vector *f)
         //chemicalequilibrium
         -k1 * m_CO2_C + k2 * m_H_C * m_HCO3_C * 1000 * MW_CO2 / (4.0 / 3.0 * Pi * pow(r_C, 3.0) * MW_H * MW_HCO3)
         //diffusion
-        + PM_CO2 * (m_CO2_c_old / V_c-m_CO2_C / (4.0 / 3.0 * Pi * pow(r_C, 3.0))) * (4.0 * Pi * pow(r_C, 2.0))
+        + diff_CO2_in_out
     );
 
     //intracellular hydrogen dynamics
@@ -161,14 +157,11 @@ int cell(const gsl_vector *x, void *params, gsl_vector *f)
         //chemical equilibrium
         + k1 * m_CO2_C * MW_H / MW_CO2 - k2 * m_H_C * m_HCO3_C * 1000 / (4.0 / 3.0 * Pi * pow(r_C, 3.0) * MW_HCO3)
         //nu_MCT_in->out
-        - (2.0 - tanh(c2aH_slope * (-log10(1000 * m_H_C / (4.0 / 3.0 * Pi * pow(r_C, 3.0) * MW_H))) - c2aH_thr)) * VMAXAcL * MW_H / MW_AcL 
-        * (4.0 * Pi * pow(r_C, 2.0)) * m_H_C / ((4.0 / 3.0 * Pi * pow(r_C, 3.0)) * K_mAcL * MW_H / MW_AcL + m_H_C)
+        - nu_MCT_in_out
         //nu_MCT_out->in
-        + (2.0 - tanh(a2cH_slope * (-log10(1000 * m_H_c / (V_c * MW_H))) - a2cH_thr)) * VMAXAcL * MW_H / MW_AcL 
-        * (4.0 * Pi * pow(r_C, 2.0)) * m_H_c / (V_c * K_mAcL * MW_H / MW_AcL + m_H_c)
+        + nu_MCT_out_in
         //nu_NHE_in->out
-        - SensO2 * SensATP * 0.5 * (1.0 + ((-log10(1000 * m_H_c / (V_c * MW_H))) - pH0_NHE) / (l_NHE + abs((-log10(1000 * m_H_c / (V_c * MW_H))) - pH0_NHE))) 
-        * VMAXNHE * (4.0 * Pi * pow(r_C, 2.0)) * pow(m_H_C, a) / (pow(4.0 / 3.0 * Pi * pow(r_C, 3.0) * MW_H * K_mNHE / 1000, a) + pow(m_H_C, a))
+        - nu_NHE_in_out
     );
 
     //intracellular bicarbonate ions dynamics
@@ -176,8 +169,7 @@ int cell(const gsl_vector *x, void *params, gsl_vector *f)
         //chemical equilibrium
         k1 * MW_HCO3 / MW_CO2 * m_CO2_C - k2 * m_H_C * m_HCO3_C * 1000 / (4.0 / 3.0 * Pi * pow(r_C, 3.0) * MW_H)
         //nu_THCO3_out->in
-        + SensATP * (0.5) * (1.0 + tanh(l_THCO3 * (-log10(1000 * m_H_c / (V_c * MW_H)) - pHe0_THCO3))) * (0.5) * (1.0 + tanh(g_THCO3 * (pHi0_THCO3 - (-log10(1000 * m_H_C / (4.0 / 3.0 * Pi * pow(r_C, 3.0) * MW_H)))))) 
-        * VMAXTHCO3 * (4.0 * Pi * pow(r_C, 2.0)) * m_HCO3_c / (V_c * K_mTHCO3 * MW_HCO3 / 1000 + m_HCO3_c)
+        + nu_THCO3_out_in
     );
 
     //extracellular hydrogen dynamics
@@ -185,17 +177,13 @@ int cell(const gsl_vector *x, void *params, gsl_vector *f)
         //chemical equilibrium
         k1 * m_CO2_c_old * MW_H / MW_CO2 - k2 * m_H_c * m_HCO3_c * 1000 / (V_c * MW_HCO3)
         //nu_MCT_in->out
-        + (2.0 - tanh(c2aH_slope * (-log10(1000 * m_H_C / (4.0 / 3.0 * Pi * pow(r_C, 3.0) * MW_H))) - c2aH_thr)) * VMAXAcL * MW_H / MW_AcL 
-        * (4.0 * Pi * pow(r_C, 2.0)) * m_H_C / ((4.0 / 3.0 * Pi * pow(r_C, 3.0)) * K_mAcL * MW_H / MW_AcL + m_H_C)
+        + nu_MCT_in_out
         //nu_MCT_out->in
-        - (2.0 - tanh(a2cH_slope * (-log10(1000 * m_H_c / (V_c * MW_H))) - a2cH_thr)) * VMAXAcL * MW_H / MW_AcL 
-        * (4.0 * Pi * pow(r_C, 2.0)) * m_H_c / (V_c * K_mAcL * MW_H / MW_AcL + m_H_c) 
+        - nu_MCT_out_in
         //nu_NHE_in->out 
-        + SensATP * SensO2 * 0.5 * (1.0 + ((-log10(1000 * m_H_c / (V_c * MW_H))) - pH0_NHE) / (l_NHE + abs((-log10(1000 * m_H_c / (V_c * MW_H))) - pH0_NHE))) 
-        * VMAXNHE * (4.0 * Pi * pow(r_C, 2.0)) * pow(m_H_C, a) / (pow(4.0 / 3.0 * Pi * pow(r_C, 3.0) * MW_H * K_mNHE / 1000, a) + pow(m_H_C, a)) 
+        + nu_NHE_in_out
         //nu_CA9 
-        + (3.0 + 2.0 * tanh(-d_CA9 * SensO2)) * VMAXCA9 * 4.0 * Pi * pow(r_C, 2.0) * m_CO2_c_old / (V_c * K_mCA9 * MW_CO2 / 1000 + m_CO2_c_old) 
-        * MW_H / MW_CO2
+        + nu_CA9 * MW_H / MW_CO2
     );
 
     //extracellular bicarbonate ions dynamics
@@ -203,11 +191,9 @@ int cell(const gsl_vector *x, void *params, gsl_vector *f)
         //chemical equilibrium
         k1 * m_CO2_c_old * MW_HCO3 / MW_CO2 - k2 * m_H_c * m_HCO3_c * 1000 / (V_c * MW_H)
         //nu_THCO3_out->in
-        - SensATP * (0.5) * (1.0 + tanh(l_THCO3 * (-log10(1000 * m_H_c / (V_c * MW_H)) - pHe0_THCO3))) 
-        * (0.5) * (1.0 + tanh(g_THCO3 * (pHi0_THCO3 - (-log10(1000 * m_H_C / (4.0 / 3.0 * Pi * pow(r_C, 3.0) * MW_H)))))) 
-        * VMAXTHCO3 * (4.0 * Pi * pow(r_C, 2.0)) * m_HCO3_c / (V_c * K_mTHCO3 * MW_HCO3 / 1000 + m_HCO3_c)
+        - nu_THCO3_out_in
         //nu_CA9
-        + (3.0 + 2.0 * tanh(-d_CA9 * SensO2)) * VMAXCA9 * 4.0 * Pi * pow(r_C, 2.0) * m_CO2_c_old / (V_c * K_mCA9 * MW_CO2 / 1000 + m_CO2_c_old) * MW_HCO3 / MW_CO2
+        + nu_CA9 * MW_HCO3 / MW_CO2
     );
 
     gsl_vector_set(f, 0, y0);
@@ -352,7 +338,7 @@ int main(void)
     const double VMAXCA9 = 9.47 * pow(10,-2)*60;   // pg/(s*mim^2)
     const double K_mCA9 = 7.2 * pow(10,-3);     // pg/mim^3
     const double d_CA9 = 7.3;                   // adim
-    const double V_c = 8000; // 1.0 * pow(10, 12);       // mim^3
+    const double V_c = 2e7; // 1.0 * pow(10, 12);       // mim^3
     const double pKa = -log10(k1 / k2);          // adim
     const double pH_cell = 7.40;                // adim
 
