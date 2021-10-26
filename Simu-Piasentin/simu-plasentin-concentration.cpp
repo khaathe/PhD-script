@@ -238,11 +238,11 @@ int main(void)
     cin >> pH;
 
     // starting conditions
-    m_CO2_C_old = 5.39 * pow(10.0, -5) * 1e-12 * 1e-15 / MW_CO2;
+    m_CO2_C_old = 5.39 * pow(10.0, -5) * 1e-12 * 1e15 / MW_CO2;
     m_H_C_old = pow(10.0, -pH_cell);
-    m_HCO3_C_old = m_CO2_C_old * pow(10.0, pH_cell - pKa);
+    m_HCO3_C_old = m_CO2_C_old * (4.0 / 3.0 * Pi * pow(r_C, 3.0)) * 1e-15 * pow(10.0, pH_cell - pKa);
 
-    m_CO2_c_old = 5.39 * pow(10.0, -5) * 1e-12 * 1e-15;
+    m_CO2_c_old = 5.39 * pow(10.0, -5) * 1e-12 * 1e15 / MW_CO2;
     m_H_c_old = pow(10.0, -pH );
     m_HCO3_c_old = m_CO2_c_old * pow(10.0, pH - pKa);
 
@@ -347,7 +347,7 @@ int main(void)
     outDatapH << endl;
 
     // gonna need them
-    outData << fixed;
+    outData << scientific;
     outData << setprecision(15);
 
     outDatapH << fixed;
@@ -356,8 +356,7 @@ int main(void)
     // first term
     outData << "0" << "\t" << m_CO2_C_old << "\t" << m_H_C_old << "\t" << m_HCO3_C_old << "\t" << m_H_c_old << "\t" << m_HCO3_c_old << endl;
     outDatapH << "0" << "\t"
-        << -log10(1000 * m_H_C_old / (4.0 / 3.0 * Pi * pow(r_C, 3.0))) << "\t"
-        << -log10(1000 * m_H_c_old / V_c) << "\t" << log10((m_HCO3_C_old * MW_CO2 * k2) / (m_CO2_C_old * MW_HCO3 * k1))
+        << -log10(m_H_C_old) << "\t" << -log10(m_H_c_old) << "\t" << log10((m_HCO3_C_old * MW_CO2 * k2) / (m_CO2_C_old * MW_HCO3 * k1))
         << "\t" << log10((m_HCO3_c_old * MW_CO2 * k2) / (m_CO2_c_old * MW_HCO3 * k1)) << endl;
 
     // starts the time
@@ -386,18 +385,18 @@ int main(void)
         }
 
         // output control
-        if (j % 100 == 0)
-        {
+        // if (j % 100 == 0)
+        // {
 
             outData << j * dt << "\t" << gsl_vector_get(s->x, 0) << "\t" << gsl_vector_get(s->x, 1) << "\t" << gsl_vector_get(s->x, 2)
                 << "\t" << gsl_vector_get(s->x, 3) << "\t" << gsl_vector_get(s->x, 4) << endl;
 
             outDatapH << j * dt << "\t"
-                << -log10(1000 * gsl_vector_get(s->x, 1) / (4.0 / 3.0 * Pi * pow(r_C, 3.0))) << "\t"
-                << -log10(1000 * gsl_vector_get(s->x, 3) / V_c)
+                << -log10(gsl_vector_get(s->x, 1)) << "\t"
+                << -log10(gsl_vector_get(s->x, 3))
                 << "\t" << log10((gsl_vector_get(s->x, 2) * MW_CO2 * k2) / (gsl_vector_get(s->x, 0) * MW_HCO3 * k1))
                 << "\t" << log10((gsl_vector_get(s->x, 4) * MW_CO2 * k2) / (m_CO2_c_old * MW_HCO3 * k1)) << endl;
-        }
+        // }
 
         x_init[0] = gsl_vector_get(s->x, 0);
         x_init[1] = gsl_vector_get(s->x, 1);
