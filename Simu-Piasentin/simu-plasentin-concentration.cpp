@@ -423,7 +423,7 @@ int main(void)
 
 
     // gonna need them
-    outData << scientific;
+    outData << fixed;
     outData << setprecision(15);
     outDatapH << fixed;
     outDatapH << setprecision(15);
@@ -469,16 +469,14 @@ int main(void)
         // output control
         if ( printFullOutput || (j % 100 == 0) )
         {
-
             outData << j * dt << "\t" << gsl_vector_get(s->x, 0) << "\t" << gsl_vector_get(s->x, 1) << "\t" << gsl_vector_get(s->x, 2)
                 << "\t" << gsl_vector_get(s->x, 3) << "\t" << gsl_vector_get(s->x, 4) << endl;
 
             outDatapH << j * dt << "\t"
-                << -log10(gsl_vector_get(s->x, 1)) << "\t"
-                << -log10(gsl_vector_get(s->x, 3))
+                << -log10(1000 * gsl_vector_get(s->x, 1) / (4.0 / 3.0 * Pi * pow(r_C, 3.0))) << "\t"
+                << -log10(1000 * gsl_vector_get(s->x, 3) / V_c)
                 << "\t" << log10((gsl_vector_get(s->x, 2) * MW_CO2 * k2) / (gsl_vector_get(s->x, 0) * MW_HCO3 * k1))
                 << "\t" << log10((gsl_vector_get(s->x, 4) * MW_CO2 * k2) / (m_CO2_c_old * MW_HCO3 * k1)) << endl;
-
             flux << j * dt << "\t" <<  diff_CO2_in_out << "\t" << nu_MCT_in_out << "\t" << nu_MCT_out_in << "\t" << nu_NHE_in_out << "\t" << nu_THCO3_out_in << "\t" << nu_CA9 << "\t" << export_protons << "\t" << protons_exported << endl;
             protons_exported = 0.0;
         }
