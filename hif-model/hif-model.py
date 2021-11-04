@@ -6,16 +6,6 @@ from scipy.integrate import solve_ivp
 import plotly.graph_objects as go
 import math
 
-NORMOXIA = 0.056 # ~5%
-HYPOXIA = 0.010564 # 1%
-ANOXIA = 1.0564e-05 # 0.001%
-GLUCOSE_NORMAL = 5.0
-GLUCOSE_LOW = 1.0
-GLUCOSE_VERY_LOW = 0.1
-
-LABELS_PLOT = ["HIF", "LDH", "PDK", "PDH", "Oxygen", "Glucose", "ATP", "H+"]
-COLOR_PLOT = ["blue", "green", "goldenrod", "grey", "red", "purple", "cyan", "magenta"]
-
 def H(y,s,n,gamma):
     return s**n / ( s**n + y**n ) + gamma * y**n / (s**n + y**n)
 
@@ -58,6 +48,27 @@ def new_model(t, x, p):
     dxdt[7] = Ph
     return dxdt
 
+def o2_decreasing(t, x, p):
+    dxdt = [None] * len(x)
+    hif, ldh, pdk, pdh, o, g, atp, h, oConsumption, gConsumption = x
+    A, D, N, hif_coeff_prod, S, gamma, Vo, Ko, pg, A0,  Kg, Kh, L, beta, k, ldh0 = p.values()
+    
+    pg = (L-beta)/(1+math.exp(-k*(ldh-ldh0))) + beta
+    Co = Vo * ( o/(o+Ko) )
+    Cg = ( (pg*A0/2.0) - (27.0*Co/10.0) ) * ( g/(g+Kg) )
+    Pa = ( (2.0 * Cg) + ( (27.0/5.0)*Co ) )
+    Ph = Kh * ( (29.0*(pg*Vo-Co))/5.0 )
+    dxdt[0] = A * hif_coeff_prod - D * H(o, S[0][1], N, gamma[0][1]) * hif
+    dxdt[1] = A * H(hif, S[1][2], N, gamma[1][2]) - D * ldh
+    dxdt[2] = A * H(hif, S[1][3], N, gamma[1][3]) - D * pdk
+    dxdt[3] = A * H(pdk, S[3][4], N, gamma[3][4]) - D * pdh
+    dxdt[4] = -0.0009333333 if (t>(480-30) and t<(480+30) ) else 0.0
+    dxdt[5] = 0.0
+    dxdt[6] = Pa
+    dxdt[7] = Ph
+    dxdt[8] = Co
+    dxdt[9] = Cg
+    return dxdt
 class Simu:
     NORMOXIA = 0.056 # ~5%
     HYPOXIA = 0.010564 # 1%
@@ -143,7 +154,7 @@ class Simu:
         pass
     
     def subplot_solution(self, sub, row_index, col_index, sol, plot_legend):
-        for i in range(8):
+        for i in range(len(sol.y)):
             sub.append_trace( 
                 go.Scatter(
                     x = sol.t, 
@@ -152,7 +163,7 @@ class Simu:
                     name = self.LABELS_PLOT[i], 
                     legendgroup='group_{}'.format(self.LABELS_PLOT[i]), 
                     showlegend=plot_legend,
-                    line_color = COLOR_PLOT[i]
+                    line_color = self.COLOR_PLOT[i]
                 ), 
                 row=row_index,
                 col=col_index
@@ -179,6 +190,9 @@ class Simu:
         elif ( modelType.lower() == "new_model" ):
             self.model = new_model
             self.modelName = "New Model"
+        elif ( modelType.lower() == "o2_decreasing" ):
+            self.model = o2_decreasing
+            self.modelName = "Model with O2 decreasing"
         else:
             self.model = base_model
             self.modelName = "Base Model"
@@ -194,33 +208,45 @@ class Simu:
         self.pSimu["subRows"] = len(self.initialCondition)
 
 if __name__ == "__main__":
-    simulation = Simu()
-    simulation.run()
-    simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
-    simulation.plot()
+    # simulation = Simu()
+    # simulation.run()
+    # simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
+    # simulation.plot()
 
-    simulation = Simu()
-    simulation.setVo(1.16e-4)
-    simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
-    simulation.run()
-    simulation.plot()
+    # simulation = Simu()
+    # simulation.setVo(1.16e-4)
+    # simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
+    # simulation.run()
+    # simulation.plot()
     
-    simulation = Simu()
-    simulation.setVo(1.16e-4)
-    simulation.updateParamOde({"pg" : 50})
-    simulation.description = "Vo = {}, pg = {}".format(simulation.pOde["Vo"], simulation.pOde["pg"])
-    simulation.run()
-    simulation.plot()
+    # simulation = Simu()
+    # simulation.setVo(1.16e-4)
+    # simulation.updateParamOde({"pg" : 50})
+    # simulation.description = "Vo = {}, pg = {}".format(simulation.pOde["Vo"], simulation.pOde["pg"])
+    # simulation.run()
+    # simulation.plot()
+
+    # simulation = Simu()
+    # simulation.setModel("new_model")
+    # simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
+    # simulation.run()
+    # simulation.plot()
+
+    # simulation = Simu()
+    # simulation.setModel("new_model")
+    # simulation.setVo(1.16e-4)
+    # simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
+    # simulation.run()
+    # simulation.plot()
 
     simulation = Simu()
-    simulation.setModel("new_model")
+    simulation.setInitialCondition({
+        "" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
+    })
+    simulation.LABELS_PLOT = ["HIF", "LDH", "PDK", "PDH", "Oxygen", "Glucose", "ATP", "H+", "Oxygen Consumption", "Glucose Consumption"]
+    simulation.COLOR_PLOT.append("#7FFFD4")
+    simulation.COLOR_PLOT.append("#FFE4C4")
     simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
-    simulation.run()
-    simulation.plot()
-
-    simulation = Simu()
-    simulation.setModel("new_model")
-    simulation.setVo(1.16e-4)
-    simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
+    simulation.setModel("o2_decreasing")
     simulation.run()
     simulation.plot()
