@@ -22,7 +22,7 @@ def H(y,s,n,gamma):
 def base_model(t, x, p):
     dxdt = [None] * 8
     hif, ldh, pdk, pdh, o, g, atp, h = x
-    A, D, N, hif_coeff_prod, S, gamma, Vo, Ko, pg, A0,  Kg, Kh = p.values()
+    A, D, N, hif_coeff_prod, S, gamma, Vo, Ko, pg, A0,  Kg, Kh, L, beta, k, ldh0 = p.values()
     Co = Vo * ( o/(o+Ko) )
     Cg = ( (pg*A0/2.0) - (27.0*Co/10.0) ) * ( g/(g+Kg) )
     Pa = ( (2.0 * Cg) + ( (27.0/5.0)*Co ) )
@@ -40,12 +40,8 @@ def base_model(t, x, p):
 def new_model(t, x, p):
     dxdt = [None] * 8
     hif, ldh, pdk, pdh, o, g, atp, h = x
-    A, D, N, hif_coeff_prod, S, gamma, Vo, Ko, pg, A0,  Kg, Kh = p.values()
+    A, D, N, hif_coeff_prod, S, gamma, Vo, Ko, pg, A0,  Kg, Kh, L, beta, k, ldh0 = p.values()
     
-    L = 50
-    beta = 1
-    k = 10
-    ldh0 = 2.176675
     pg = (L-beta)/(1+math.exp(-k*(ldh-ldh0))) + beta
 
     Co = Vo * ( o/(o+Ko) )
@@ -105,7 +101,11 @@ class Simu:
             "pg" : 1.0,
             "A0" : 29.0/5.0 * 2.1e-11,
             "Kg" : 0.04,
-            "Kh" : 2.5e-4
+            "Kh" : 2.5e-4,
+            "L" : 50,
+            "beta" : 1,
+            "k" : 10,
+            "ldh0" : 2.176675
         }
         self.pSimu = {
             "tspan" : [0.0, 1440.0],
@@ -116,7 +116,7 @@ class Simu:
         self.solutions = {}
         self.model = base_model
         self.modelName = "Base Model"
-        self.description = "Vo={}".format( self.pOde["Vo"] )
+        self.description = ""
 
     def run(self):
         self.solutions= dict()
@@ -196,10 +196,12 @@ class Simu:
 if __name__ == "__main__":
     simulation = Simu()
     simulation.run()
+    simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
     simulation.plot()
 
     simulation = Simu()
     simulation.setVo(1.16e-4)
+    simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
     simulation.run()
     simulation.plot()
     
@@ -212,11 +214,13 @@ if __name__ == "__main__":
 
     simulation = Simu()
     simulation.setModel("new_model")
+    simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
     simulation.run()
     simulation.plot()
 
     simulation = Simu()
     simulation.setModel("new_model")
     simulation.setVo(1.16e-4)
+    simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
     simulation.run()
     simulation.plot()
