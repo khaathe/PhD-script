@@ -12,9 +12,6 @@ ANOXIA = 1.0564e-05 # 0.001%
 GLUCOSE_NORMAL = 5.0
 GLUCOSE_LOW = 1.0
 GLUCOSE_VERY_LOW = 0.1
-G0 = [3.565, 1.726, 3.31, 0.28]
-ATP0 = 0.0
-H0 = 10**(-7.4)/1000
 
 LABELS_PLOT = ["HIF", "LDH", "PDK", "PDH", "Oxygen", "Glucose", "ATP", "H+"]
 COLOR_PLOT = ["blue", "green", "goldenrod", "grey", "red", "purple", "cyan", "magenta"]
@@ -45,6 +42,14 @@ def get_base_parameters():
         "A0" : 29.0/5.0 * 2.1e-11,
         "Kg" : 0.04,
         "Kh" : 2.5e-4
+    }
+
+def get_base_initial_conditions():
+    return {
+        "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, NORMOXIA, GLUCOSE_NORMAL, 0.0, 10**(-7.4)/1000],
+        "hypoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, HYPOXIA, GLUCOSE_NORMAL, 0.0, 10**(-7.4)/1000],
+        "normoxia+low_glucose" : [ 3.565, 1.726, 3.31, 0.28, NORMOXIA, GLUCOSE_LOW, 0.0, 10**(-7.4)/1000],
+        "hypoxia+low_glucose" : [ 3.565, 1.726, 3.31, 0.28, HYPOXIA, GLUCOSE_LOW, 0.0, 10**(-7.4)/1000]
     }
 
 def H(y,s,n,gamma):
@@ -142,14 +147,20 @@ def simulate_different_environment(m, initial_conditions, parameter, tspan, dt):
         solutions[condition] = solve_ivp(m, tspan, initial_conditions[condition], t_eval= t, method='DOP853', args=[parameter], rtol = 1e-6, atol=1e-10)
     return solutions
 
+def run_simulation(model):
+    initial_conditions = get_base_initial_conditions()
+    p = get_base_parameters()
+    solutions = simulate_different_environment(model, initial_conditions, p, [0.0, 1440.0], 0.1)
+    sub = make_subplots(rows = 4, cols=1, subplot_titles=list(solutions.keys()))
+    subplot_solution(sub, 1, 1, solutions["normoxia+normal_glucose"], plot_legend=True)
+    subplot_solution(sub, 2, 1, solutions["hypoxia+normal_glucose"])
+    subplot_solution(sub, 3, 1, solutions["normoxia+low_glucose"])
+    subplot_solution(sub, 4, 1, solutions["hypoxia+low_glucose"])
+    sub.update_layout(title_text="Base Model Result, Vo={}".format(p["Vo"]))
+    sub.show()
+
 def run_base_model():
-    hif, ldh, pdk, pdh = G0
-    initial_conditions = {
-        "normoxia+normal_glucose" : [ hif, ldh, pdk, pdh, NORMOXIA, GLUCOSE_NORMAL, ATP0, H0],
-        "hypoxia+normal_glucose" : [ hif, ldh, pdk, pdh, HYPOXIA, GLUCOSE_NORMAL, ATP0, H0],
-        "normoxia+low_glucose" : [ hif, ldh, pdk, pdh, NORMOXIA, GLUCOSE_LOW, ATP0, H0],
-        "hypoxia+low_glucose" : [ hif, ldh, pdk, pdh, HYPOXIA, GLUCOSE_LOW, ATP0, H0]
-    }
+    initial_conditions = get_base_initial_conditions()
     p = get_base_parameters()
     solutions = simulate_different_environment(base_model, initial_conditions, p, [0.0, 1440.0], 0.1)
     sub = make_subplots(rows = 4, cols=1, subplot_titles=list(solutions.keys()))
@@ -161,13 +172,7 @@ def run_base_model():
     sub.show()
 
 def run_base_model_increased_o2_consumption():
-    hif, ldh, pdk, pdh = G0
-    initial_conditions = {
-        "normoxia+normal_glucose" : [ hif, ldh, pdk, pdh, NORMOXIA, GLUCOSE_NORMAL, ATP0, H0],
-        "hypoxia+normal_glucose" : [ hif, ldh, pdk, pdh, HYPOXIA, GLUCOSE_NORMAL, ATP0, H0],
-        "normoxia+low_glucose" : [ hif, ldh, pdk, pdh, NORMOXIA, GLUCOSE_LOW, ATP0, H0],
-        "hypoxia+low_glucose" : [ hif, ldh, pdk, pdh, HYPOXIA, GLUCOSE_LOW, ATP0, H0]
-    }
+    initial_conditions = get_base_initial_conditions()
     p = get_base_parameters()
     Vo = 1.16e-4
     p["Vo"] = Vo
@@ -182,13 +187,7 @@ def run_base_model_increased_o2_consumption():
     sub.show()
 
 def run_base_model_increased_o2_and_glucose_consumption():
-    hif, ldh, pdk, pdh = G0
-    initial_conditions = {
-        "normoxia+normal_glucose" : [ hif, ldh, pdk, pdh, NORMOXIA, GLUCOSE_NORMAL, ATP0, H0],
-        "hypoxia+normal_glucose" : [ hif, ldh, pdk, pdh, HYPOXIA, GLUCOSE_NORMAL, ATP0, H0],
-        "normoxia+low_glucose" : [ hif, ldh, pdk, pdh, NORMOXIA, GLUCOSE_LOW, ATP0, H0],
-        "hypoxia+low_glucose" : [ hif, ldh, pdk, pdh, HYPOXIA, GLUCOSE_LOW, ATP0, H0]
-    }
+    initial_conditions = get_base_initial_conditions()
     p = get_base_parameters()
     Vo = 1.16e-4
     p["Vo"] = Vo
@@ -204,13 +203,7 @@ def run_base_model_increased_o2_and_glucose_consumption():
     sub.show()
 
 def run_new_model():
-    hif, ldh, pdk, pdh = G0
-    initial_conditions = {
-        "normoxia+normal_glucose" : [ hif, ldh, pdk, pdh, NORMOXIA, GLUCOSE_NORMAL, ATP0, H0],
-        "hypoxia+normal_glucose" : [ hif, ldh, pdk, pdh, HYPOXIA, GLUCOSE_NORMAL, ATP0, H0],
-        "normoxia+low_glucose" : [ hif, ldh, pdk, pdh, NORMOXIA, GLUCOSE_LOW, ATP0, H0],
-        "hypoxia+low_glucose" : [ hif, ldh, pdk, pdh, HYPOXIA, GLUCOSE_LOW, ATP0, H0]
-    }
+    initial_conditions = get_base_initial_conditions()
     p = get_base_parameters()
     solutions = simulate_different_environment(new_model, initial_conditions, p, [0.0, 1440.0], 0.1)
     sub = make_subplots(rows = 4, cols=1, subplot_titles=list(solutions.keys()))
@@ -222,13 +215,7 @@ def run_new_model():
     sub.show()
 
 def run_new_model_increased_o2_consumption():
-    hif, ldh, pdk, pdh = G0
-    initial_conditions = {
-        "normoxia+normal_glucose" : [ hif, ldh, pdk, pdh, NORMOXIA, GLUCOSE_NORMAL, ATP0, H0],
-        "hypoxia+normal_glucose" : [ hif, ldh, pdk, pdh, HYPOXIA, GLUCOSE_NORMAL, ATP0, H0],
-        "normoxia+low_glucose" : [ hif, ldh, pdk, pdh, NORMOXIA, GLUCOSE_LOW, ATP0, H0],
-        "hypoxia+low_glucose" : [ hif, ldh, pdk, pdh, HYPOXIA, GLUCOSE_LOW, ATP0, H0]
-    }
+    initial_conditions = get_base_initial_conditions()
     p = get_base_parameters()
     Vo = 1.16e-4
     p["Vo"] = Vo
