@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractclassmethod
 import numpy as np
+from numpy.linalg import cond
 from plotly.subplots import make_subplots
 from scipy.integrate import solve_ivp
 import plotly.graph_objects as go
@@ -82,19 +83,38 @@ class Simu(ABC):
         self.pOde["Vo"] = Vo
         self.pOde["A0"] = 29.0/5.0 * Vo
 
-    def plot(self):
-        nbRows = self.pSimu["subRows"]
-        nbCols = self.pSimu["subCols"]
+    def plot_vars(self, condition, vars_index, vars_label):
+        nbRows = len(vars_index)
+        nbCols = 1
+        sub = make_subplots(rows = nbRows, cols=nbCols)
+        for i in range(nbRows):
+            for j in range(nbCols):
+                sub.append_trace(
+                    go.Scatter(
+                        x = self.solutions[condition].t, 
+                        y = self.solutions[condition].y[ vars_index[i*nbCols+j] ], 
+                        mode = "lines", 
+                        name = vars_label[i*nbCols+j],
+                        showlegend=True
+                    ), 
+                    row=i+1,
+                    col=j+1
+                )
+        sub.update_layout(title_text= "{} - {}".format(self.modelName, self.description) )
+        sub.show()
+
+    def plot_all_condition_all_vars(self):
+        nbRows = len(self.initialCondition)
+        nbCols = 1
         solKeys = list(self.solutions.keys())
         sub = make_subplots(rows = nbRows, cols=nbCols, subplot_titles=solKeys)
         for i in range(nbRows):
             for j in range(nbCols):
-                self.subplot_solution(sub, i+1, j+1, self.solutions[ solKeys[i*nbCols+j] ], plot_legend=(i*nbCols+j == 0))
+                self.subplot_all_var(sub, i+1, j+1, self.solutions[ solKeys[i*nbCols+j] ], plot_legend=(i*nbCols+j == 0))
         sub.update_layout(title_text= "{} - {}".format(self.modelName, self.description) )
         sub.show(config = self.CONFIG)
-        pass
     
-    def subplot_solution(self, sub, row_index, col_index, sol, plot_legend):
+    def subplot_all_var(self, sub, row_index, col_index, sol, plot_legend):
         for i in range(len(sol.y)):
             sub.append_trace( 
                 go.Scatter(
@@ -231,7 +251,7 @@ if __name__ == "__main__":
     # simulation = BaseModel()
     # simulation.run()
     # simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
-    # simulation.plot()
+    # simulation.plot_all_condition_all_vars()
 
     # simulation = BaseModel()
     # simulation.setVo(1.16e-4)
@@ -249,7 +269,7 @@ if __name__ == "__main__":
     # simulation = NewModel()
     # simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
     # simulation.run()
-    # simulation.plot()
+    # simulation.plot_all_condition_all_vars()
 
     # simulation = NewModel()
     # simulation.setVo(1.16e-4)
@@ -261,3 +281,14 @@ if __name__ == "__main__":
     # simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
     # simulation.run()
     # simulation.plot()
+
+    simulation = NewModel()
+    simulation.setInitialCondition({
+        "Normoxia - Glucose = 5 mmol/L" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000],
+        "Normoxia - Glucose = 1 mmol/L" : [ 3.565, 1.726, 3.31, 0.28,0.056, 1.0, 0.0, 10**(-7.4)/1000]
+    })
+    simulation.setVo(2.1e-11 * 5e6)
+    simulation.description = "Vo={}".format( simulation.pOde["Vo"] )
+    simulation.run()
+    simulation.plot_vars("Normoxia - Glucose = 5 mmol/L", [0, 4, 5, 7], ["HIF", "Oxygen", "Glucose", "H+"])
+    simulation.plot_vars("Normoxia - Glucose = 1 mmol/L", [0, 4, 5, 7], ["HIF", "Oxygen", "Glucose", "H+"])
