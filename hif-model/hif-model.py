@@ -107,8 +107,23 @@ class Simu(ABC):
         fig.show()
         return fig
 
-    def plot_var_across_conditions(self, var, title):
-        pass
+    def plot_var_across_conditions(self, var, title, x_title="Time (min)", y_title="Value over Time"):
+        i = 1
+        sub = make_subplots(rows = len(self.solutions), cols = 1, subplot_titles = list(self.solutions.keys()) )
+        for k in self.solutions.keys():
+            sub.append_trace( go.Scatter(x=self.solutions[k]["Time"], y=self.solutions[k][var], mode='lines', showlegend=False), row=i, col=1)
+            i = i + 1
+        sub.update_layout(
+            title = title,
+            xaxis_title = x_title,
+            yaxis={
+                "title" : y_title,
+                "showexponent" : 'all',
+                "exponentformat" : 'e'
+            }
+        )
+        sub.show()
+        return sub
 
     def plot_vars(self, condition, vars_index, vars_label):
         nbRows = len(vars_index)
@@ -361,9 +376,10 @@ class BaseModelWithO2Decreasing(DecreasingO2,BaseModel):
 
 
 if __name__ == "__main__":
-    simulation = NewModelWithO2Decreasing()
+    simulation = NewModel()
     simulation.run()
-    simulation.plot_vars_V2("", ["HIF", "Oxygen"], "test")
+    simulation.plot("normoxia+normal_glucose", "test")
+    simulation.plot_var_across_conditions("HIF", "HIF Accross conditions")
     
     # simulation = NewModelWithO2Decreasing()
     # simulation.setVo(0.012*60)
