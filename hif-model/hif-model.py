@@ -32,10 +32,9 @@ class Simu(ABC):
             "hypoxia+low_glucose" : [ 3.565, 1.726, 3.31, 0.28, self.HYPOXIA, self.GLUCOSE_LOW, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
         }
         self.pOde = {
-            "A" : 0.005,
-            "D" : 0.005,
+            "A" : [0.7, 0.005, 0.005, 0.005, 0.005,], # We multiply HIF prod rate by 140 or we should change gamma_O2-> as well
+            "D" : [0.005, 0.005, 0.005, 0.005, 0.005,],
             "N" : 4.0,
-            "hif_coeff_prod" : 140.0,
             "S" : [ 
                 [0.0,20.85e-3,0.0,0.0,0.0],
                 [0.0,0.0,4.64,4.0,0.0],
@@ -155,15 +154,15 @@ class BaseModel(Simu):
     def model(self, t, x, p):
         dxdt = [None] * len(x)
         hif, ldh, pdk, pdh, o, g, atp, h, oConsumption, gConsumption = x
-        A, D, N, hif_coeff_prod, S, gamma, Vo, Ko, pg, A0,  Kg, Kh = p.values()
+        A, D, N, S, gamma, Vo, Ko, pg, A0,  Kg, Kh = p.values()
         Co = Vo * ( o/(o+Ko) )
         Cg = ( (pg*A0/2.0) - (27.0*Co/10.0) ) * ( g/(g+Kg) )
         Pa = ( (2.0 * Cg) + ( (27.0/5.0)*Co ) )
         Ph = Kh*( (29.0*(pg*Vo-Co))/5.0 )
-        dxdt[0] = A * hif_coeff_prod - D * self.H(o, S[0][1], N, gamma[0][1]) * hif
-        dxdt[1] = A * self.H(hif, S[1][2], N, gamma[1][2]) - D * ldh
-        dxdt[2] = A * self.H(hif, S[1][3], N, gamma[1][3]) - D * pdk
-        dxdt[3] = A * self.H(pdk, S[3][4], N, gamma[3][4]) - D * pdh
+        dxdt[0] = A[0] - D[0] * self.H(o, S[0][1], N, gamma[0][1]) * hif
+        dxdt[1] = A[1] * self.H(hif, S[1][2], N, gamma[1][2]) - D[1] * ldh
+        dxdt[2] = A[2] * self.H(hif, S[1][3], N, gamma[1][3]) - D[2] * pdk
+        dxdt[3] = A[3] * self.H(pdk, S[3][4], N, gamma[3][4]) - D[3] * pdh
         dxdt[4] = -Co
         dxdt[5] = -Cg
         dxdt[6] = Pa
@@ -191,17 +190,17 @@ class NewModel(Simu):
     def model(self, t, x, p):
         dxdt = [None] * len(x)
         hif, ldh, pdk, pdh, o, g, atp, h, oConsumption, gConsumption = x
-        A, D, N, hif_coeff_prod, S, gamma, Vo, Ko, pg, A0,  Kg, Kh, pg_max, pg_min, k, ldh0, po_max, po_min, l, pdh0 = p.values()
+        A, D, N, S, gamma, Vo, Ko, pg, A0,  Kg, Kh, pg_max, pg_min, k, ldh0, po_max, po_min, l, pdh0 = p.values()
         po = (po_max-po_min)/(1+math.exp(-l*(pdh-pdh0))) + po_min
         pg = (pg_max-pg_min)/(1+math.exp(-k*(ldh-ldh0))) + pg_min
         Co = po * Vo * ( o/(o+Ko) )
         Cg = ( (pg*A0/2.0) - (27.0*Co/10.0) ) * ( g/(g+Kg) )
         Pa = ( (2.0 * Cg) + ( (27.0/5.0)*Co ) )
         Ph = Kh * ( (29.0*(pg*Vo-Co))/5.0 )
-        dxdt[0] = A * hif_coeff_prod - D * self.H(o, S[0][1], N, gamma[0][1]) * hif
-        dxdt[1] = A * self.H(hif, S[1][2], N, gamma[1][2]) - D * ldh
-        dxdt[2] = A * self.H(hif, S[1][3], N, gamma[1][3]) - D * pdk
-        dxdt[3] = A * self.H(pdk, S[3][4], N, gamma[3][4]) - D * pdh
+        dxdt[0] = A[0] - D[0] * self.H(o, S[0][1], N, gamma[0][1]) * hif
+        dxdt[1] = A[1] * self.H(hif, S[1][2], N, gamma[1][2]) - D[1] * ldh
+        dxdt[2] = A[2] * self.H(hif, S[1][3], N, gamma[1][3]) - D[2] * pdk
+        dxdt[3] = A[3] * self.H(pdk, S[3][4], N, gamma[3][4]) - D[3] * pdh
         dxdt[4] = -Co
         dxdt[5] = -Cg
         dxdt[6] = Pa
@@ -218,7 +217,7 @@ class DecreasingO2(Simu):
 
     def dO2Dt(self, t, o):
         dxdt = 0.0 
-        if (t>(480-30) and t<(480+30) and o > Simu.ANOXIA):
+        if (t>(480-30) and t<(480+30) and o > self.ANOXIA):
             dxdt = -0.0009333333 
         elif (t>(960-30) and t<(960+30) and o < self.NORMOXIA):
             dxdt = 0.0009333333
@@ -244,17 +243,17 @@ class NewModelWithO2Decreasing(DecreasingO2, NewModel):
     def model(self, t, x, p):
         dxdt = [None] * len(x)
         hif, ldh, pdk, pdh, o, g, atp, h, oConsumption, gConsumption = x
-        A, D, N, hif_coeff_prod, S, gamma, Vo, Ko, pg, A0,  Kg, Kh, pg_max, pg_min, k, ldh0, po_max, po_min, l, pdh0 = p.values()
+        A, D, N, S, gamma, Vo, Ko, pg, A0,  Kg, Kh, pg_max, pg_min, k, ldh0, po_max, po_min, l, pdh0 = p.values()
         po = (po_max-po_min)/(1+math.exp(-l*(pdh-pdh0))) + po_min
         pg = (pg_max-pg_min)/(1+math.exp(-k*(ldh-ldh0))) + pg_min
         Co = po * Vo * ( o/(o+Ko) )
         Cg = ( (pg*A0/2.0) - (27.0*Co/10.0) ) * ( g/(g+Kg) )
         Pa = ( (2.0 * Cg) + ( (27.0/5.0)*Co ) )
         Ph = Kh * ( (29.0*(pg*Vo-Co))/5.0 )
-        dxdt[0] = A * hif_coeff_prod - D * self.H(o, S[0][1], N, gamma[0][1]) * hif
-        dxdt[1] = A * self.H(hif, S[1][2], N, gamma[1][2]) - D * ldh
-        dxdt[2] = A * self.H(hif, S[1][3], N, gamma[1][3]) - D * pdk
-        dxdt[3] = A * self.H(pdk, S[3][4], N, gamma[3][4]) - D * pdh
+        dxdt[0] = A[0] - D[0] * self.H(o, S[0][1], N, gamma[0][1]) * hif
+        dxdt[1] = A[1] * self.H(hif, S[1][2], N, gamma[1][2]) - D[1] * ldh
+        dxdt[2] = A[2] * self.H(hif, S[1][3], N, gamma[1][3]) - D[2] * pdk
+        dxdt[3] = A[3] * self.H(pdk, S[3][4], N, gamma[3][4]) - D[3] * pdh
         dxdt[4] = self.dO2Dt(t,o)
         dxdt[5] = 0.0
         dxdt[6] = Pa
@@ -282,15 +281,15 @@ class BaseModelWithO2Decreasing(DecreasingO2,BaseModel):
     def model(self, t, x, p):
         dxdt = [None] * len(x)
         hif, ldh, pdk, pdh, o, g, atp, h, oConsumption, gConsumption = x
-        A, D, N, hif_coeff_prod, S, gamma, Vo, Ko, pg, A0,  Kg, Kh = p.values()
+        A, D, N, S, gamma, Vo, Ko, pg, A0,  Kg, Kh = p.values()
         Co = Vo * ( o/(o+Ko) )
         Cg = ( (pg*A0/2.0) - (27.0*Co/10.0) ) * ( g/(g+Kg) )
         Pa = ( (2.0 * Cg) + ( (27.0/5.0)*Co ) )
         Ph = Kh*( (29.0*(pg*Vo-Co))/5.0 )
-        dxdt[0] = A * hif_coeff_prod - D * self.H(o, S[0][1], N, gamma[0][1]) * hif
-        dxdt[1] = A * self.H(hif, S[1][2], N, gamma[1][2]) - D * ldh
-        dxdt[2] = A * self.H(hif, S[1][3], N, gamma[1][3]) - D * pdk
-        dxdt[3] = A * self.H(pdk, S[3][4], N, gamma[3][4]) - D * pdh
+        dxdt[0] = A[0] - D[0] * self.H(o, S[0][1], N, gamma[0][1]) * hif
+        dxdt[1] = A[1] * self.H(hif, S[1][2], N, gamma[1][2]) - D[1] * ldh
+        dxdt[2] = A[2] * self.H(hif, S[1][3], N, gamma[1][3]) - D[2] * pdk
+        dxdt[3] = A[3] * self.H(pdk, S[3][4], N, gamma[3][4]) - D[3] * pdh
         dxdt[4] = self.dO2Dt(t, o)
         dxdt[5] = 0.0
         dxdt[6] = Pa
@@ -304,26 +303,29 @@ def run_base_model():
     simulation = BaseModel()
     simulation.run()
     vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
-    simulation.plot_vars("normoxia+normal_glucose", vars, "Variable in Normoxia+Normal Glucose")
+    simulation.plot_vars("normoxia+normal_glucose", vars, "Base Model - Variable in Normoxia+Normal Glucose")
 
 def run_new_model():
     simulation = NewModel()
     simulation.run()
     vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
-    simulation.plot_vars("normoxia+normal_glucose", vars, "Variable in Normoxia+Normal Glucose")
+    simulation.plot_vars("normoxia+normal_glucose", vars, "New Model - Variable in Normoxia+Normal Glucose")
+    simulation.plot("normoxia+normal_glucose", "Plot")
 
 def run_decreasing_o2_new_model():
     simulation = NewModelWithO2Decreasing()
     simulation.run()
-    simulation.plot("", "New Model With O2 Decreasing")
+    vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
+    simulation.plot_vars("", vars, "New Model With O2 Decreasing")
 
 def run_decreasing_o2_base_model():
     simulation = BaseModelWithO2Decreasing()
     simulation.run()
-    simulation.plot("", "Base Model With O2 Decreasing")
+    vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
+    simulation.plot_vars("", vars, "Base Model With O2 Decreasing")
 
 if __name__ == "__main__":
     run_base_model()
     run_new_model()
-    # run_decreasing_o2_base_model()
-    # run_decreasing_o2_new_model()
+    run_decreasing_o2_base_model()
+    run_decreasing_o2_new_model()
