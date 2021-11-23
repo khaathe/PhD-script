@@ -11,6 +11,14 @@ import plotly.express as px
 import pandas as pd
 import math
 
+# Example of initial Condition
+# Order -> [HIF, LDH, PDK, PDH, Oxygen, Glucose, ATP, H+, Oxygen Consumed, Glucose Consumed]
+# {
+#             "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
+#             "hypoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.010564, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
+#             "normoxia+low_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 1.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
+#             "hypoxia+low_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.010564, 1.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
+# }
 class Simu(ABC):
     NORMOXIA = 0.056 # ~5%
     HYPOXIA = 0.010564 # 1%
@@ -25,12 +33,7 @@ class Simu(ABC):
     CONFIG = {'displaylogo': False}
 
     def __init__(self):
-        self.initialCondition = {
-            "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, self.NORMOXIA, self.GLUCOSE_NORMAL, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
-            "hypoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, self.HYPOXIA, self.GLUCOSE_NORMAL, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
-            "normoxia+low_glucose" : [ 3.565, 1.726, 3.31, 0.28, self.NORMOXIA, self.GLUCOSE_LOW, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
-            "hypoxia+low_glucose" : [ 3.565, 1.726, 3.31, 0.28, self.HYPOXIA, self.GLUCOSE_LOW, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
-        }
+        self.initialCondition = None
         self.pOde = {
             "A" : [0.7, 0.005, 0.005, 0.005, 0.005,], # We multiply HIF prod rate by 140 or we should change gamma_O2-> as well
             "D" : [0.005, 0.005, 0.005, 0.005, 0.005,],
@@ -228,9 +231,7 @@ class NewModelWithO2Decreasing(DecreasingO2, NewModel):
     def __init__(self):
         DecreasingO2.__init__(self)
         NewModel.__init__(self)
-        self.initialCondition = {
-             "" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
-        }
+        self.initialCondition = None
         self.pSimu.update({
             "subRows" : 1,
             "subCols" : 1
@@ -266,9 +267,7 @@ class BaseModelWithO2Decreasing(DecreasingO2,BaseModel):
     def __init__(self):
         DecreasingO2.__init__(self)
         BaseModel.__init__(self)
-        self.initialCondition = {
-             "" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
-        }
+        self.initialCondition = None
         self.pSimu.update({
             "subRows" : 1,
             "subCols" : 1
@@ -298,34 +297,55 @@ class BaseModelWithO2Decreasing(DecreasingO2,BaseModel):
         dxdt[9] = Cg
         return dxdt
 
-
 def run_base_model():
     simulation = BaseModel()
+    simulation.setInitialCondition({
+            "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
+    })
     simulation.run()
     vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
     simulation.plot_vars("normoxia+normal_glucose", vars, "Base Model - Variable in Normoxia+Normal Glucose")
 
 def run_new_model():
     simulation = NewModel()
+    simulation.setInitialCondition({
+            "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
+    })
     simulation.run()
     vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
     simulation.plot_vars("normoxia+normal_glucose", vars, "New Model - Variable in Normoxia+Normal Glucose")
-    simulation.plot("normoxia+normal_glucose", "Plot")
 
 def run_decreasing_o2_new_model():
     simulation = NewModelWithO2Decreasing()
+    simulation.setInitialCondition({
+            "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
+    })
     simulation.run()
     vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
-    simulation.plot_vars("", vars, "New Model With O2 Decreasing")
+    simulation.plot_vars("normoxia+normal_glucose", vars, "New Model With O2 Decreasing")
 
 def run_decreasing_o2_base_model():
     simulation = BaseModelWithO2Decreasing()
+    simulation.setInitialCondition({
+            "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
+    })
     simulation.run()
     vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
-    simulation.plot_vars("", vars, "Base Model With O2 Decreasing")
+    simulation.plot_vars("normoxia+normal_glucose", vars, "Base Model With O2 Decreasing")
 
+def run_physicell_tumor_conditions():
+    simulation = NewModel()
+    simulation.setInitialCondition({"PhysiCell" : [3.565, 1.726, 3.31, 0.28, 0.056, 0.5, 0.0, 10**(-7.4)/1000, 0.0, 0.0] })
+    simulation.run()
+    simulation.plot_vars("PhysiCell", ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"], "Consumption Rates with 0.5 mM Glucose")
+    
+    simulation.setInitialCondition({"PhysiCell" : [3.565, 1.726, 3.31, 0.28, 0.056, 1e-30, 0.0, 10**(-7.4)/1000, 0.0, 0.0] })
+    simulation.run()
+    simulation.plot_vars("PhysiCell", ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"], "Consumption Rates with 1e-30 mM Glucose")
+    
 if __name__ == "__main__":
     run_base_model()
     run_new_model()
     run_decreasing_o2_base_model()
     run_decreasing_o2_new_model()
+    run_physicell_tumor_conditions()
