@@ -1,4 +1,4 @@
-#!/usr/bin
+#!/usr/bin/python3
 
 from abc import ABC, abstractclassmethod
 from operator import mod
@@ -97,7 +97,7 @@ class Simu(ABC):
             data["Glucose Consumption Rate"] = self.calculate_rates(data["Glucose Consumed"], self.pSimu["dt"])
             data["H+ Production Rate"] = self.calculate_rates(data["H+"], self.pSimu["dt"])
             data["ATP Production Rate"] = self.calculate_rates(data["ATP"], self.pSimu["dt"])
-            data["pH"] = [ -math.log10(1000*x) for x in data["H+"]]
+            data["pH"] = [ -math.log10(1e-3*x) for x in data["H+"]]
             df = pd.DataFrame(data)
             self.solutions[condition] = df
 
@@ -180,11 +180,11 @@ class NewModel(Simu):
         self.pOde.update({
             "pg_max" : 50,
             "pg_min" : 1,
-            "k" : 10,
+            "k" : 100,
             "ldh0" : 2.176675,
             "po_max" : 1,
             "po_min" : 0.0,
-            "l" : 30,
+            "l" : 100,
             "pdh0" : 0.21245
         })
         self.modelName = "New Model"
@@ -300,29 +300,46 @@ class BaseModelWithO2Decreasing(DecreasingO2,BaseModel):
 def run_base_model():
     simulation = BaseModel()
     simulation.setInitialCondition({
-            "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
+            "proliferation" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
+            "no_oxygen" : [ 3.565, 1.726, 3.31, 0.28, 0.0, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
+            "no_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 0.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
+            "no_nutrient" : [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
     })
     simulation.run()
-    vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
-    simulation.plot_vars("normoxia+normal_glucose", vars, "Base Model - Variable in Normoxia+Normal Glucose")
+    vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
+    simulation.plot_vars("proliferation", vars, "Base Model - Proliferation conditions (no nutrient absence)")
+    simulation.plot_vars("no_oxygen", vars, "Base Model - Absence of Oxygen")
+    simulation.plot_vars("no_glucose", vars, "Base Model - Absence of Glucose")
+    simulation.plot_vars("no_nutrient", vars, "Base Model - Absence of Nutrient")
 
 def run_new_model():
     simulation = NewModel()
     simulation.setInitialCondition({
-            "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
+            "proliferation" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
+            "no_oxygen" : [ 3.565, 1.726, 3.31, 0.28, 0.0, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
+            "no_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 0.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
+            "no_nutrient" : [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0],
     })
     simulation.run()
-    vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
-    simulation.plot_vars("normoxia+normal_glucose", vars, "New Model - Variable in Normoxia+Normal Glucose")
+    vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
+    simulation.plot_vars("proliferation", vars, "New Model - Proliferation conditions (no nutrient absence)")
+    simulation.plot_vars("no_oxygen", vars, "New Model - Absence of Oxygen")
+    simulation.plot_vars("no_glucose", vars, "New Model - Absence of Glucose")
+    simulation.plot_vars("no_nutrient", vars, "New Model - Absence of Nutrient")
 
 def run_decreasing_o2_new_model():
     simulation = NewModelWithO2Decreasing()
+    simulation.pOde.update({"k":100, "l":100})
     simulation.setInitialCondition({
             "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
     })
     simulation.run()
-    vars = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate", "pH"]
-    simulation.plot_vars("normoxia+normal_glucose", vars, "New Model With O2 Decreasing")
+    vars_rates = ["Oxygen", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
+    vars_gene = ["Oxygen", "HIF", "LDH", "PDK", "PDH"]
+    vars_molecule = ["Oxygen", "Glucose", "H+", "pH"]
+    simulation.plot_vars("normoxia+normal_glucose", vars_rates, "New Model With O2 Decreasing - Reaction Rates")
+    simulation.plot_vars("normoxia+normal_glucose", vars_gene, "New Model With O2 Decreasing - Genes level")
+    simulation.plot_vars("normoxia+normal_glucose", vars_molecule, "New Model With O2 Decreasing - Nutrient and H+")
 
 def run_decreasing_o2_base_model():
     simulation = BaseModelWithO2Decreasing()
@@ -334,15 +351,27 @@ def run_decreasing_o2_base_model():
     simulation.plot_vars("normoxia+normal_glucose", vars, "Base Model With O2 Decreasing")
 
 def run_physicell_tumor_conditions():
-    simulation = NewModel()
-    simulation.setInitialCondition({"PhysiCell" : [3.565, 1.726, 3.31, 0.28, 0.056, 0.5, 0.0, 10**(-7.4)/1000, 0.0, 0.0] })
+    simulation = BaseModel()
+    Vo = 0.01875
+    simulation.pOde.update({
+            "Vo" : Vo,
+            "Ko" : 0.005,
+            "pg" : 1.0,
+            "A0" : 29.0/5.0 * Vo,
+            "Kg" : 0.04,
+            "Kh" : 1.0e-5,
+            "pg" : 1
+    })
+    simulation.pSimu.update({"tspan" : [0.0, 1440.0], "dt" : 0.1})
+    simulation.setInitialCondition({"PhysiCell" : [3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 3.981072e-5, 0.0, 0.0] })
     simulation.run()
-    simulation.plot_vars("PhysiCell", ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"], "Consumption Rates with 0.5 mM Glucose")
-    
-    simulation.setInitialCondition({"PhysiCell" : [3.565, 1.726, 3.31, 0.28, 0.056, 1e-30, 0.0, 10**(-7.4)/1000, 0.0, 0.0] })
-    simulation.run()
-    simulation.plot_vars("PhysiCell", ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"], "Consumption Rates with 1e-30 mM Glucose")
-    
+    vars = ["Oxygen", "Glucose", "H+", "ATP", "pH"]
+    title = '{}, pg = {}'.format(simulation.modelName, simulation.pOde["pg"])
+    simulation.plot_vars("PhysiCell", vars, "{} - Substrate concentration".format(title))
+    vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
+    simulation.plot_vars("PhysiCell", vars, "{} Rates".format(title))
+
+
 if __name__ == "__main__":
     run_base_model()
     run_new_model()
