@@ -22,6 +22,7 @@ from scipy import optimize
 # }
 
 hypoxic_period = lambda t : 0.056/(1+math.exp(0.3*(t-480))) + 0.056/(1+math.exp(-0.3*(t-960)))
+hypoxia_at_8h = lambda t : 0.056/(1+math.exp(0.3*(t-480)))
 hypoglycemia_period = lambda t : 5.0/(1+math.exp(0.3*(t-480))) + 5.0/(1+math.exp(-0.3*(t-960)))
 
 class Simu(ABC):
@@ -177,6 +178,8 @@ class Simu(ABC):
         fig.show()
         return sol
 
+    def changeGamma(self, i, j, newValue):
+        self.pOde["gamma"][i][j] = newValue
 class BaseModel(Simu):
     def __init__(self):
         super().__init__()
@@ -345,6 +348,50 @@ def run_physicell_tumor_conditions():
     vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
     simulation.plot_vars(vars, "{} Rates".format(title))
 
+def hif_overexpressed():
+    simulation = NewModel()
+    simulation.getO2Extra = hypoxic_period
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
+    simulation.changeGamma(0, 1, 1.0)
+    simulation.run()
+    vars = ["Oxygen Extracellular", "Glucose Extracellular",  "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate"]
+    simulation.plot_vars(vars, "HIF Not Degraded")
+
+def pdk_overexpressed():
+    simulation = NewModel()
+    simulation.getO2Extra = hypoxic_period
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
+    simulation.changeGamma(1, 3, 8.0)
+    simulation.run()
+    vars = ["Oxygen Extracellular", "Glucose Extracellular",  "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate"]
+    simulation.plot_vars(vars, "PDK Overexpressed")
+
+def pdk_deactivated():
+    simulation = NewModel()
+    simulation.getO2Extra = hypoxic_period
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
+    simulation.changeGamma(3, 4, 1.0)
+    simulation.run()
+    vars = ["Oxygen Extracellular", "Glucose Extracellular",  "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate"]
+    simulation.plot_vars(vars, "PDK Deactivated")
+
+def hif_overexpressed_and_pdk_deactivated():
+    simulation = NewModel()
+    simulation.getO2Extra = hypoxia_at_8h
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
+    simulation.changeGamma(0, 1, 1.0)
+    simulation.changeGamma(3, 4, 1.0)
+    simulation.run()
+    vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
+    vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
+    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
+    vars_consumption = ["Oxygen Extracellular", "Glucose Extracellular", "Oxygen Consumed", "Glucose Consumed"]
+    simulation.plot_vars(vars_rates, "HIF Not Degraded + PDK Deactivated - Reaction Rates")
+    simulation.plot_vars(vars_gene, "HIF Not Degraded + PDK Deactivated - Genes level")
+    simulation.plot_vars(vars_molecule, "HIF Not Degraded + PDK Deactivated - Nutrient and H+")
+    simulation.plot_vars(vars_consumption, "HIF Not Degraded + PDK Deactivated - Consumption")
+
+
 if __name__ == "__main__":
     run_base_model_fixed_condition()
     run_new_model_fixed_condition()
@@ -352,3 +399,7 @@ if __name__ == "__main__":
     run_decreasing_o2_new_model()
     run_physicell_tumor_conditions()
     run_fixed_hypoxia_new_model()
+    hif_overexpressed()
+    pdk_overexpressed()
+    pdk_deactivated()
+    hif_overexpressed_and_pdk_deactivated()
