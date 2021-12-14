@@ -21,6 +21,8 @@ from scipy import optimize
 #             "hypoxia+low_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.010564, 1.0, 0.0, 10**(-7.4)/1000, 0.0, 0.0]
 # }
 
+hypoxic_period = lambda t : 0.056/(1+math.exp(0.3*(t-480))) + 0.056/(1+math.exp(-0.3*(t-960)))
+
 class Simu(ABC):
     NORMOXIA = 0.056 # ~5%
     HYPOXIA = 0.010564 # 1%
@@ -65,10 +67,14 @@ class Simu(ABC):
             "tspan" : [0.0, 1440.0],
             "dt" : 0.1,
             "subRows" : 4,
-            "subCols" : 1,
+            "subCols" : 1
+        }
+        self.microenvironment = {
             "oExtraInitial" : 0.056,
             "gExtraInitial" : 5.0,
-            "protonExtraInitial" : 10**(-7.4 + 3)
+            "protonExtraInitial" : 10**(-7.4 + 3),
+            "oExtra" : 0.056,
+            "gExtra" : 5.0
         }
         self.solutions = {}
         self.model = self.model
@@ -80,10 +86,10 @@ class Simu(ABC):
         pass
 
     def getO2Extra(self, t):
-        return 0.056
+        return self.microenvironment["oExtra"]
 
     def getGlucoseExtra(self, t):
-        return 5.0
+        return self.microenvironment["gExtra"]
 
     def H(self,y,s,n,gamma):
         return s**n / ( s**n + y**n ) + gamma * y**n / (s**n + y**n)
@@ -110,7 +116,7 @@ class Simu(ABC):
             data["ATP Production Rate"] = self.calculate_rates(data["ATP"], self.pSimu["dt"])
             data["Oxygen Extracellular"] = [self.getO2Extra(t) for t in sol.t ]
             data["Glucose Extracellular"] = [self.getGlucoseExtra(t) for t in sol.t ]
-            data["H+ Extracellular"] = [ self.pSimu["protonExtraInitial"] + x for x in sol.y[7] ]
+            data["H+ Extracellular"] = [ self.microenvironment["protonExtraInitial"] + x for x in sol.y[7] ]
             data["pH"] = [ -math.log10(1e-3*x) for x in data["H+ Extracellular"]]
             df = pd.DataFrame(data)
             self.solutions[condition] = df
@@ -255,19 +261,32 @@ class NewModelWithO2Decreasing(NewModel):
 
     def __init__(self):
         NewModel.__init__(self)
+        self.microenvironment = {
+            "oExtraInitial" : 0.056,
+            "gExtraInitial" : 5.0,
+            "protonExtraInitial" : 10**(-7.4 + 3),
+            "oExtra" : hypoxic_period,
+            "gExtra" : 5.0
+        }
         self.modelName = "New Model with Varying O2 over time"
-        self.description = ""
     
     def getO2Extra(self, t):
-        return 0.056/(1+math.exp(0.3*(t-480))) + 0.056/(1+math.exp(-0.3*(t-960)))
+        return self.microenvironment["oExtra"](t)
 
 class BaseModelWithO2Decreasing(BaseModel):
     def __init__(self):
         BaseModel.__init__(self)
+        self.microenvironment = {
+            "oExtraInitial" : 0.056,
+            "gExtraInitial" : 5.0,
+            "protonExtraInitial" : 10**(-7.4 + 3),
+            "oExtra" : hypoxic_period,
+            "gExtra" : 5.0
+        }
         self.modelName = "Base Model with Varying O2 over time"
 
     def getO2Extra(self, t):
-        return 0.056/(1+math.exp(0.3*(t-480))) + 0.056/(1+math.exp(-0.3*(t-960)))
+        return self.microenvironment["oExtra"](t)
 
 def run_base_model():
     simulation = BaseModel()
@@ -296,9 +315,9 @@ def run_decreasing_o2_base_model():
     vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
     vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
     vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars("normoxia+normal_glucose", vars_rates, "New Model With O2 Decreasing - Reaction Rates")
-    simulation.plot_vars("normoxia+normal_glucose", vars_gene, "New Model With O2 Decreasing - Genes level")
-    simulation.plot_vars("normoxia+normal_glucose", vars_molecule, "New Model With O2 Decreasing - Nutrient and H+")
+    simulation.plot_vars("normoxia+normal_glucose", vars_rates, "Base Model With O2 Decreasing - Reaction Rates")
+    simulation.plot_vars("normoxia+normal_glucose", vars_gene, "Base Model With O2 Decreasing - Genes level")
+    simulation.plot_vars("normoxia+normal_glucose", vars_molecule, "Base Model With O2 Decreasing - Nutrient and H+")
 
 def run_decreasing_o2_new_model():
     simulation = NewModelWithO2Decreasing()
