@@ -22,6 +22,7 @@ from scipy import optimize
 # }
 
 hypoxic_period = lambda t : 0.056/(1+math.exp(0.3*(t-480))) + 0.056/(1+math.exp(-0.3*(t-960)))
+hypoglycemia_period = lambda t : 5.0/(1+math.exp(0.3*(t-480))) + 5.0/(1+math.exp(-0.3*(t-960)))
 
 class Simu(ABC):
     NORMOXIA = 0.056 # ~5%
@@ -76,7 +77,7 @@ class Simu(ABC):
             "oExtra" : 0.056,
             "gExtra" : 5.0
         }
-        self.solutions = {}
+        self.solutions = None
         self.model = self.model
         self.modelName = ""
         self.description = ""
@@ -105,28 +106,27 @@ class Simu(ABC):
         tspan = self.pSimu["tspan"]
         dt = self.pSimu["dt"]
         t = np.arange(tspan[0], tspan[1], dt)
-        for condition in self.initialCondition:
-            sol = solve_ivp(self.model, tspan, self.initialCondition[condition], t_eval= t, method='DOP853', args=[self.pOde], rtol = 1e-6, atol=1e-10)
-            data = { "Time" : sol.t}
-            for i in range(len(self.DF_COLUMN_NAMES)):
-                data[ self.DF_COLUMN_NAMES[i] ] = sol.y[i]
-            data["Oxygen Consumption Rate"] = self.calculate_rates(data["Oxygen Consumed"], self.pSimu["dt"])
-            data["Glucose Consumption Rate"] = self.calculate_rates(data["Glucose Consumed"], self.pSimu["dt"])
-            data["H+ Production Rate"] = self.calculate_rates(data["H+"], self.pSimu["dt"])
-            data["ATP Production Rate"] = self.calculate_rates(data["ATP"], self.pSimu["dt"])
-            data["Oxygen Extracellular"] = [self.getO2Extra(t) for t in sol.t ]
-            data["Glucose Extracellular"] = [self.getGlucoseExtra(t) for t in sol.t ]
-            data["H+ Extracellular"] = [ self.microenvironment["protonExtraInitial"] + x for x in sol.y[7] ]
-            data["pH"] = [ -math.log10(1e-3*x) for x in data["H+ Extracellular"]]
-            df = pd.DataFrame(data)
-            self.solutions[condition] = df
-
+        sol = solve_ivp(self.model, tspan, self.initialCondition, t_eval= t, method='DOP853', args=[self.pOde], rtol = 1e-6, atol=1e-10)
+        data = { "Time" : sol.t}
+        for i in range(len(self.DF_COLUMN_NAMES)):
+            data[ self.DF_COLUMN_NAMES[i] ] = sol.y[i]
+        data["Oxygen Consumption Rate"] = self.calculate_rates(data["Oxygen Consumed"], self.pSimu["dt"])
+        data["Glucose Consumption Rate"] = self.calculate_rates(data["Glucose Consumed"], self.pSimu["dt"])
+        data["H+ Production Rate"] = self.calculate_rates(data["H+"], self.pSimu["dt"])
+        data["ATP Production Rate"] = self.calculate_rates(data["ATP"], self.pSimu["dt"])
+        data["Oxygen Extracellular"] = [self.getO2Extra(t) for t in sol.t ]
+        data["Glucose Extracellular"] = [self.getGlucoseExtra(t) for t in sol.t ]
+        data["H+ Extracellular"] = [ self.microenvironment["protonExtraInitial"] + x for x in sol.y[7] ]
+        data["pH"] = [ -math.log10(1e-3*x) for x in data["H+ Extracellular"]]
+        df = pd.DataFrame(data)
+        self.solutions = df
+            
     def setVo(self, Vo):
         self.pOde["Vo"] = Vo
         self.pOde["A0"] = 29.0/5.0 * Vo
 
-    def plot(self, condition, title, x_title="Time (min)", y_title="Value over Time"):
-        data = self.solutions[condition]
+    def plot(self, title, x_title="Time (min)", y_title="Value over Time"):
+        data = self.solutions
         fig = px.line(data, x="Time", y=data.columns[1:data.shape[1]]) 
         fig.update_layout(
             title = title,
@@ -140,33 +140,17 @@ class Simu(ABC):
         fig.show()
         return fig
 
-    def plot_var_across_conditions(self, var, title, x_title="Time (min)", y_title="Value over Time"):
-        i = 1
-        sub = make_subplots(rows = len(self.solutions), cols = 1, subplot_titles = list(self.solutions.keys()) )
-        for k in self.solutions.keys():
-            sub.append_trace( go.Scatter(x=self.solutions[k]["Time"], y=self.solutions[k][var], mode='lines', showlegend=False), row=i, col=1)
-            i = i + 1
-        sub.update_layout(title = title)
-        sub.update_xaxes(title_text = x_title)
-        sub.update_yaxes(title_text = y_title, showexponent = 'all', exponentformat = 'e')
-        sub.show()
-        return sub
-
-    def plot_vars(self, condition, vars, title, x_title="Time (min)", y_title="Value over Time"):
+    def plot_vars(self, vars, title, x_title="Time (min)", y_title="Value over Time"):
         i = 1
         sub = make_subplots(rows = len(vars), cols = 1, subplot_titles = vars )
         for v in vars:
-            sub.append_trace( go.Scatter(x=self.solutions[condition]["Time"], y=self.solutions[condition][v], mode='lines', showlegend=False), row=i, col=1)
+            sub.append_trace( go.Scatter(x=self.solutions["Time"], y=self.solutions[v], mode='lines', showlegend=False), row=i, col=1)
             i = i + 1
         sub.update_layout(title = title)
         sub.update_xaxes(title_text = x_title)
         sub.update_yaxes(title_text = y_title, showexponent = 'all', exponentformat = 'e')
         sub.show()
         return sub
-
-    def setInitialCondition(self, initialConditions):
-        self.initialCondition = initialConditions
-        self.pSimu["subRows"] = len(self.initialCondition)
 
     def stable_state(self, title, xaxis, yaxis, t=0.0, nbInterval = 30):
         wrapper = lambda x: self.model(t, x, self.pOde)
@@ -256,83 +240,44 @@ class NewModel(Simu):
         dxdt[6] = Pa
         dxdt[7] = Ph
         return dxdt
-    
-class NewModelWithO2Decreasing(NewModel):
 
-    def __init__(self):
-        NewModel.__init__(self)
-        self.microenvironment = {
-            "oExtraInitial" : 0.056,
-            "gExtraInitial" : 5.0,
-            "protonExtraInitial" : 10**(-7.4 + 3),
-            "oExtra" : hypoxic_period,
-            "gExtra" : 5.0
-        }
-        self.modelName = "New Model with Varying O2 over time"
-    
-    def getO2Extra(self, t):
-        return self.microenvironment["oExtra"](t)
-
-class BaseModelWithO2Decreasing(BaseModel):
-    def __init__(self):
-        BaseModel.__init__(self)
-        self.microenvironment = {
-            "oExtraInitial" : 0.056,
-            "gExtraInitial" : 5.0,
-            "protonExtraInitial" : 10**(-7.4 + 3),
-            "oExtra" : hypoxic_period,
-            "gExtra" : 5.0
-        }
-        self.modelName = "Base Model with Varying O2 over time"
-
-    def getO2Extra(self, t):
-        return self.microenvironment["oExtra"](t)
-
-def run_base_model():
+def run_base_model_fixed_condition():
     simulation = BaseModel()
-    simulation.setInitialCondition({
-            "proliferation" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    })
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
     vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    simulation.plot_vars("proliferation", vars, "Base Model - Proliferation conditions (no nutrient absence)")
+    simulation.plot_vars(vars, "Base Model - Proliferation conditions (no nutrient absence)")
 
-def run_new_model():
+def run_new_model_fixed_condition():
     simulation = NewModel()
-    simulation.setInitialCondition({
-            "proliferation" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    })
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
     vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    simulation.plot_vars("proliferation", vars, "New Model - Proliferation conditions (no nutrient absence)")
+    simulation.plot_vars(vars, "New Model - Proliferation conditions (no nutrient absence)")
 
 def run_decreasing_o2_base_model():
-    simulation = BaseModelWithO2Decreasing()
-    simulation.setInitialCondition({
-            "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    })
+    simulation = BaseModel()
+    simulation.getO2Extra = hypoxic_period
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
     vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
     vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
     vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars("normoxia+normal_glucose", vars_rates, "Base Model With O2 Decreasing - Reaction Rates")
-    simulation.plot_vars("normoxia+normal_glucose", vars_gene, "Base Model With O2 Decreasing - Genes level")
-    simulation.plot_vars("normoxia+normal_glucose", vars_molecule, "Base Model With O2 Decreasing - Nutrient and H+")
+    simulation.plot_vars(vars_rates, "Base Model With O2 Decreasing - Reaction Rates")
+    simulation.plot_vars(vars_gene, "Base Model With O2 Decreasing - Genes level")
+    simulation.plot_vars(vars_molecule, "Base Model With O2 Decreasing - Nutrient and H+")
 
 def run_decreasing_o2_new_model():
-    simulation = NewModelWithO2Decreasing()
-    simulation.pOde.update({"k":100, "l":100})
-    simulation.setInitialCondition({
-            "normoxia+normal_glucose" : [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    })
-    simulation.run()
+    simulation = NewModel()
+    simulation.getO2Extra = hypoxic_period
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
     vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
     vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
     vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars("normoxia+normal_glucose", vars_rates, "New Model With O2 Decreasing - Reaction Rates")
-    simulation.plot_vars("normoxia+normal_glucose", vars_gene, "New Model With O2 Decreasing - Genes level")
-    simulation.plot_vars("normoxia+normal_glucose", vars_molecule, "New Model With O2 Decreasing - Nutrient and H+")
+    simulation.plot_vars(vars_rates, "New Model With O2 Decreasing - Reaction Rates")
+    simulation.plot_vars(vars_gene, "New Model With O2 Decreasing - Genes level")
+    simulation.plot_vars(vars_molecule, "New Model With O2 Decreasing - Nutrient and H+")
 
 def run_physicell_tumor_conditions():
     simulation = BaseModel()
@@ -347,17 +292,50 @@ def run_physicell_tumor_conditions():
             "pg" : 1
     })
     simulation.pSimu.update({"tspan" : [0.0, 1440.0], "dt" : 0.1})
-    simulation.setInitialCondition({"PhysiCell" : [3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 3.981072e-5, 0.0, 0.0] })
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
-    vars = ["Oxygen", "Glucose", "H+", "ATP", "pH"]
+    vars = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "ATP", "pH"]
     title = '{}, pg = {}'.format(simulation.modelName, simulation.pOde["pg"])
-    simulation.plot_vars("PhysiCell", vars, "{} - Substrate concentration".format(title))
+    simulation.plot_vars(vars, "{} - Substrate concentration".format(title))
     vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    simulation.plot_vars("PhysiCell", vars, "{} Rates".format(title))
+    simulation.plot_vars(vars, "{} Rates".format(title))
 
+def color_map_acidity_in_various_nutrient_conditions():
+    simu = NewModel()
+    simu.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
+    simu.pSimu["tspan"] = (0,60)
+    nbInterval = 5
+    oxygen = np.linspace(0.0, 0.056, nbInterval)
+    glucose = np.linspace(0.0, 5.0, nbInterval)
+    data = np.zeros((nbInterval, nbInterval))
+    for i in range(0, nbInterval):
+        for j in range(0, nbInterval):
+            simu.microenvironment["oExtra"] = oxygen[i]
+            simu.microenvironment["gExtra"] = glucose[j]
+            simu.run()
+            data[i,j] = simu.solutions["H+"].tail(1) / simu.pSimu["tspan"][1]
+    fig = go.Figure(
+        data = go.Heatmap(
+            x = oxygen,
+            y = glucose,
+            z = data
+        )
+    )
+    fig.update_layout(
+        title = 'Color Map',
+        xaxis = {
+            "title" : "Oxygen"
+        },
+        yaxis = {
+            "title" : "Glucose"
+        }
+    )
+    fig.show()
+    
 if __name__ == "__main__":
-    run_base_model()
-    run_new_model()
-    run_decreasing_o2_base_model()
-    run_decreasing_o2_new_model()
-    run_physicell_tumor_conditions()
+    # run_base_model_fixed_condition()
+    # run_new_model_fixed_condition()
+    # run_decreasing_o2_base_model()
+    # run_decreasing_o2_new_model()
+    # run_physicell_tumor_conditions()
+    color_map_acidity_in_various_nutrient_conditions()
