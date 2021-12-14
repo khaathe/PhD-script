@@ -241,6 +241,39 @@ class NewModel(Simu):
         dxdt[7] = Ph
         return dxdt
 
+def heatmap_h_prod_rate(simulation, title, nbInterval=100):
+    oxygen = np.linspace(0.0, 0.056, nbInterval)
+    glucose = np.linspace(0.0, 5.0, nbInterval)
+    data = np.zeros((nbInterval, nbInterval))
+    for i in range(0, nbInterval):
+        for j in range(0, nbInterval):
+            simulation.microenvironment["gExtra"] = glucose[i]
+            simulation.microenvironment["oExtra"] = oxygen[j]
+            sol = solve_ivp(simulation.model, simulation.pSimu["tspan"], simulation.initialCondition, method='DOP853', args=[simulation.pOde], rtol = 1e-6, atol=1e-10)
+            data[i, j] = sol.y[7, -1] / simulation.pSimu["tspan"][1]
+    fig = go.Figure(
+        data = go.Heatmap(
+            x = oxygen,
+            y = glucose,
+            z = data,
+            colorbar = {
+                "exponentformat" : "e",
+                "showexponent" : "all",
+                "title" : "H+ Production Rate"
+            }
+        )
+    )
+    fig.update_layout(
+        title = title,
+        xaxis = {
+            "title" : "Oxygen"
+        },
+        yaxis = {
+            "title" : "Glucose"
+        }
+    )
+    fig.show()
+
 def run_base_model_fixed_condition():
     simulation = BaseModel()
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
@@ -254,6 +287,18 @@ def run_new_model_fixed_condition():
     simulation.run()
     vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
     simulation.plot_vars(vars, "New Model - Proliferation conditions (no nutrient absence)")
+
+def run_fixed_hypoxia_new_model():
+    simulation = NewModel()
+    simulation.getO2Extra = lambda t : NewModel.HYPOXIA
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
+    simulation.run()
+    vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
+    vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
+    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
+    simulation.plot_vars(vars_rates, "Base Model With O2 Decreasing - Reaction Rates")
+    simulation.plot_vars(vars_gene, "Base Model With O2 Decreasing - Genes level")
+    simulation.plot_vars(vars_molecule, "Base Model With O2 Decreasing - Nutrient and H+")
 
 def run_decreasing_o2_base_model():
     simulation = BaseModel()
@@ -300,42 +345,10 @@ def run_physicell_tumor_conditions():
     vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
     simulation.plot_vars(vars, "{} Rates".format(title))
 
-def color_map_acidity_in_various_nutrient_conditions():
-    simu = NewModel()
-    simu.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    simu.pSimu["tspan"] = (0,60)
-    nbInterval = 5
-    oxygen = np.linspace(0.0, 0.056, nbInterval)
-    glucose = np.linspace(0.0, 5.0, nbInterval)
-    data = np.zeros((nbInterval, nbInterval))
-    for i in range(0, nbInterval):
-        for j in range(0, nbInterval):
-            simu.microenvironment["oExtra"] = oxygen[i]
-            simu.microenvironment["gExtra"] = glucose[j]
-            simu.run()
-            data[i,j] = simu.solutions["H+"].tail(1) / simu.pSimu["tspan"][1]
-    fig = go.Figure(
-        data = go.Heatmap(
-            x = oxygen,
-            y = glucose,
-            z = data
-        )
-    )
-    fig.update_layout(
-        title = 'Color Map',
-        xaxis = {
-            "title" : "Oxygen"
-        },
-        yaxis = {
-            "title" : "Glucose"
-        }
-    )
-    fig.show()
-    
 if __name__ == "__main__":
-    # run_base_model_fixed_condition()
-    # run_new_model_fixed_condition()
-    # run_decreasing_o2_base_model()
-    # run_decreasing_o2_new_model()
-    # run_physicell_tumor_conditions()
-    color_map_acidity_in_various_nutrient_conditions()
+    run_base_model_fixed_condition()
+    run_new_model_fixed_condition()
+    run_decreasing_o2_base_model()
+    run_decreasing_o2_new_model()
+    run_physicell_tumor_conditions()
+    run_fixed_hypoxia_new_model()
