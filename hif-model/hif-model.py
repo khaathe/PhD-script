@@ -25,6 +25,9 @@ hypoxic_period = lambda t : 0.056/(1+math.exp(0.3*(t-480))) + 0.056/(1+math.exp(
 hypoxia_at_8h = lambda t : 0.056/(1+math.exp(0.3*(t-480)))
 hypoglycemia_period = lambda t : 5.0/(1+math.exp(0.3*(t-480))) + 5.0/(1+math.exp(-0.3*(t-960)))
 
+y0_normoxia = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
+y0_hypoxia = [ 140, 3.8, 6.95, 0.15, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
+
 class Simu(ABC):
     NORMOXIA = 0.056 # ~5%
     HYPOXIA = 0.010564 # 1%
@@ -152,7 +155,7 @@ class Simu(ABC):
         fig.show()
         return fig
 
-    def plot_vars(self, vars, title, x_title="Time (min)", y_title="Value over Time"):
+    def get_plot_vars(self, vars, title, x_title="Time (min)", y_title="Value over Time"):
         i = 1
         sub = make_subplots(rows = len(vars), cols = 1, subplot_titles = vars )
         for v in vars:
@@ -161,7 +164,6 @@ class Simu(ABC):
         sub.update_layout(title = title)
         sub.update_xaxes(title_text = x_title)
         sub.update_yaxes(title_text = y_title, showexponent = 'all', exponentformat = 'e')
-        sub.show()
         return sub
 
     def stable_state(self, title, xaxis, yaxis, t=0.0, nbInterval = 30):
@@ -192,21 +194,21 @@ class Simu(ABC):
     def changeGamma(self, i, j, newValue):
         self.pOde["gamma"][i][j] = newValue
 
-    def plot_rates(self, title=None ):
+    def get_plot_rates(self, title=None ):
         title = "{} - Reaction Rates".format(self.modelName) if title == None else title
-        self.plot_vars(self.VARS_RATES, title)
+        return self.get_plot_vars(self.VARS_RATES, title)
 
-    def plot_genes(self, title=None ):
+    def get_plot_genes(self, title=None ):
         title = "{} - Genes level".format(self.modelName) if title == None else title
-        self.plot_vars(self.VARS_GENES, title)
+        return self.get_plot_vars(self.VARS_GENES, title)
 
-    def plot_microenviroment(self, title=None ):
+    def get_plot_microenviroment(self, title=None ):
         title = "{} - Extracellular Concentration".format(self.modelName) if title == None else title
-        self.plot_vars(self.VARS_MICROENVIRONMENT, title)
+        return self.get_plot_vars(self.VARS_MICROENVIRONMENT, title)
 
-    def plot_metabolism(self, title=None ):
+    def get_plot_metabolism(self, title=None ):
         title = "{} - Metabolism (total Consumption and Production)".format(self.modelName) if title == None else title
-        self.plot_vars(self.VARS_METABOLISM, title)
+        return self.get_plot_vars(self.VARS_METABOLISM, title)
 
 # Genes and Metabolism Separated
 class GMSModel(Simu):
@@ -302,7 +304,7 @@ class PLGCModel(GMCModel):
         dxdt[7] = Ph
         return dxdt
 
-def heatmap_h_prod_rate(simulation, title, nbInterval=100):
+def simulate_at_different_extra_concentration(simulation, nbInterval):
     oxygen = np.linspace(0.0, 0.056, nbInterval)
     glucose = np.linspace(0.0, 5.0, nbInterval)
     data = np.zeros((nbInterval, nbInterval))
@@ -312,6 +314,10 @@ def heatmap_h_prod_rate(simulation, title, nbInterval=100):
             simulation.microenvironment["oExtra"] = oxygen[j]
             sol = solve_ivp(simulation.model, simulation.pSimu["tspan"], simulation.initialCondition, method='DOP853', args=[simulation.pOde], rtol = 1e-6, atol=1e-10)
             data[i, j] = sol.y[7, -1] / simulation.pSimu["tspan"][1]
+    return [oxygen, glucose, data]
+
+def get_heatmap_h_prod_rate(simulation, title, nbInterval=10):
+    oxygen, glucose, data = simulate_at_different_extra_concentration(simulation, nbInterval)
     fig = go.Figure(
         data = go.Heatmap(
             x = oxygen,
@@ -335,190 +341,104 @@ def heatmap_h_prod_rate(simulation, title, nbInterval=100):
             "title" : "Glucose"
         }
     )
-    fig.show()
+    return fig
 
-def run_GMS_model_fixed_condition():
-    simulation = GMSModel()
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
+def get_contour_h_prod_rate(simulation, title, nbInterval=10):
+    oxygen, glucose, data = simulate_at_different_extra_concentration(simulation, nbInterval)
+    fig = go.Figure(
+        data = go.Contour(
+            x = oxygen,
+            y = glucose,
+            z = data,
+            zmin = 0.0,
+            zmax = data.max(),
+            colorbar = {
+                "exponentformat" : "e",
+                "showexponent" : "all",
+                "title" : "H+ Production Rate"
+            }
+        )
+    )
+    fig.update_layout(
+        title = title,
+        xaxis = {
+            "title" : "Oxygen"
+        },
+        yaxis = {
+            "title" : "Glucose"
+        }
+    )
+    return fig
 
-def run_GMC_model_fixed_condition():
-    simulation = GMCModel()
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
-
-def run_GMC_model_fixed_hypoxia():
-    simulation = GMCModel()
-    simulation.getO2Extra = lambda t : GMCModel.HYPOXIA
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
-
-def run_GMS_model_hypoxic_period():
-    simulation = GMSModel()
+def run_PLGC_Model_hif_overexpressed():
+    simulation = PLGCModel()
     simulation.getO2Extra = hypoxic_period
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    simulation.modelName = simulation.modelName + " with Hypoxic Period"
-    simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
-
-def run_GMC_model_hypoxic_period():
-    simulation = GMCModel()
-    simulation.getO2Extra = hypoxic_period
-    simulation.modelName = simulation.modelName + " with Hypoxic Period"
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
-
-def run_GMC_model_hypoglycemic_period():
-    simulation = GMCModel()
-    simulation.getGlucoseExtra = hypoglycemia_period
-    simulation.modelName = simulation.modelName + " with Hypoglycemic Period"
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
-
-def run_GMC_model_physicell_tumor_conditions():
-    simulation = GMSModel()
-    Vo = 0.01875
-    simulation.pOde.update({
-            "Vo" : Vo,
-            "Ko" : 0.005,
-            "pg" : 1.0,
-            "A0" : 29.0/5.0 * Vo,
-            "Kg" : 0.04,
-            "Kh" : 1.0e-5,
-            "pg" : 1
-    })
-    simulation.pSimu.update({"tspan" : [0.0, 1440.0], "dt" : 0.1})
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    simulation.run()
-    vars = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "ATP", "pH"]
-    title = '{}, pg = {}'.format(simulation.modelName, simulation.pOde["pg"])
-    simulation.plot_vars(vars, "{} - Substrate concentration".format(title))
-    vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    simulation.plot_vars(vars, "{} Rates".format(title))
-
-def run_GMC_Model_hif_overexpressed():
-    simulation = GMCModel()
-    simulation.getO2Extra = hypoxic_period
-    simulation.modelName = simulation.modelName + " with HIF overexpressed"
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
+    simulation.modelName = simulation.modelName + " - gamma_Oxygen->HIF = 1"
+    simulation.initialCondition = y0_normoxia
     simulation.changeGamma(0, 1, 1.0)
     simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
+    simulation.get_plot_genes().show()
+    simulation.get_plot_rates().show()
+    simulation.get_plot_metabolism().show()
+    simulation.get_plot_microenviroment().show()
 
-def run_GMC_Model_pdk_overexpressed():
-    simulation = GMCModel()
+def run_PLGC_Model_ldh_overexpressed():
+    simulation = PLGCModel()
     simulation.getO2Extra = hypoxic_period
-    simulation.modelName = simulation.modelName + " with PDK overexpressed"
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
-    simulation.changeGamma(1, 3, 8.0)
+    simulation.modelName = simulation.modelName + " - gamma HIF->LDH = 10"
+    simulation.initialCondition = y0_normoxia
+    simulation.changeGamma(1, 2, 10.0)
     simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
+    simulation.get_plot_genes().show()
+    simulation.get_plot_rates().show()
+    simulation.get_plot_metabolism().show()
+    simulation.get_plot_microenviroment().show()
 
-def run_GMC_Model_pdk_deactivated():
-    simulation = GMCModel()
+def run_PLGC_Model_pdh_overexpressed():
+    simulation = PLGCModel()
     simulation.getO2Extra = hypoxic_period
-    simulation.modelName = simulation.modelName + " with PDK deactivated"
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
+    simulation.modelName = simulation.modelName + " - gamma PDK->PDH = 1"
+    simulation.initialCondition = y0_normoxia
     simulation.changeGamma(3, 4, 1.0)
     simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
+    simulation.get_plot_genes().show()
+    simulation.get_plot_rates().show()
+    simulation.get_plot_metabolism().show()
+    simulation.get_plot_microenviroment().show()
     
-def run_GMC_Model_hif_overexpressed_and_pdk_deactivated():
+def run_GMC_Model_hif_and_pdh_overexpressed():
     simulation = GMCModel()
     simulation.getO2Extra = hypoxic_period
-    simulation.modelName = simulation.modelName + " with HIF overexpressed + PDK deactivated"
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
+    simulation.modelName = simulation.modelName + " - gamma Oxygen->HIF = 1, gamma PDK->PDH = 1"
+    simulation.initialCondition = y0_normoxia
     simulation.changeGamma(0, 1, 1.0)
     simulation.changeGamma(3, 4, 1.0)
     simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
+    simulation.get_plot_genes().show()
+    simulation.get_plot_rates().show()
+    simulation.get_plot_metabolism().show()
+    simulation.get_plot_microenviroment().show()
 
-def run_PLGC_model_fixed_condition():
+def alter_all_genetic_regulations():
+    dir = "/home/spinicck/PhD/Code/output/hif-model/images/contourmap/"
     simulation = PLGCModel()
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
-    simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
+    simulation.initialCondition = y0_normoxia
+    get_contour_h_prod_rate(simulation, "ContourMap H+ production rate in various conditions - Normal").write_image(dir + "normal.png", scale=3)
 
-def run_PLGC_model_hypoxic_period():
-    simulation = PLGCModel()
-    simulation.getO2Extra = hypoxic_period
-    simulation.modelName = simulation.modelName + " with Hypoxic Period"
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
-    simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
-
-def run_PLGC_model_hypoglycemic_period():
-    simulation = PLGCModel()
-    simulation.getGlucoseExtra = hypoglycemia_period
-    simulation.modelName = simulation.modelName + " with Hypoglycemic Period"
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
-    simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
-
-def run_PLGC_model_fixed_hypoxia_and_hypoglycemia_period():
-    simulation = PLGCModel()
-    simulation.getO2Extra = hypoxic_period
-    simulation.getGlucoseExtra = hypoglycemia_period
-    simulation.modelName = simulation.modelName + " with a Period whithout Nutrient"
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
-    simulation.run()
-    simulation.plot_genes()
-    simulation.plot_rates()
-    simulation.plot_metabolism()
-    simulation.plot_microenviroment()
-
-def compare_GMC_and_PLGC_model_hypoxic_period():
-    run_GMC_model_hypoxic_period()
-    run_PLGC_model_hypoxic_period()
-
-def compare_GMC_and_PLGC_model_hypoglycemic_period():
-    run_GMC_model_hypoglycemic_period()
-    run_PLGC_model_hypoglycemic_period()
-   
-
+    gammas = [ (0,1), (1,2), (1,3), (3, 4) ]
+    activation = [1, 10]
+    names = ["O2", "HIF", "LDH", "PDK", "PDH"]
+    for (x,y) in gammas:
+            for g in activation:
+                simulation = PLGCModel()
+                simulation.initialCondition = y0_normoxia
+                simulation.changeGamma(x, y, g)
+                fig = get_contour_h_prod_rate(
+                    simulation, 
+                    "ContourMap H+ production rate in various conditions - {}->{} : {}".format(names[x], names[y], g)
+                )
+                file = dir + "{}_{}_{}.png".format(names[x], names[y], g)
+                fig.write_image(file, scale=3)
+        
 if __name__ == "__main__":
     pass
