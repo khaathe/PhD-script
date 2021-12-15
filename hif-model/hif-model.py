@@ -58,12 +58,12 @@ class Simu(ABC):
                 [0.0,0.0,0.0,0.0,0.14],
                 [0.0,0.0,0.0,0.0,0.0]
             ],
-            "Vo" : 2.1e-11,
+            "Vo" : 0.01875,
             "Ko" : 0.005,
             "pg" : 1.0,
-            "A0" : 29.0/5.0 * 2.1e-11,
+            "A0" : 0.10875,
             "Kg" : 0.04,
-            "Kh" : 2.5e-4
+            "Kh" : 1e-5
         }
         self.pSimu = {
             "tspan" : [0.0, 1440.0],
@@ -377,8 +377,8 @@ def pdk_deactivated():
 
 def hif_overexpressed_and_pdk_deactivated():
     simulation = NewModel()
-    simulation.getO2Extra = hypoxia_at_8h
-    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
+    simulation.getO2Extra = hypoxic_period
+    simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
     simulation.changeGamma(0, 1, 1.0)
     simulation.changeGamma(3, 4, 1.0)
     simulation.run()
@@ -390,7 +390,6 @@ def hif_overexpressed_and_pdk_deactivated():
     simulation.plot_vars(vars_gene, "HIF Not Degraded + PDK Deactivated - Genes level")
     simulation.plot_vars(vars_molecule, "HIF Not Degraded + PDK Deactivated - Nutrient and H+")
     simulation.plot_vars(vars_consumption, "HIF Not Degraded + PDK Deactivated - Consumption")
-
 
 if __name__ == "__main__":
     run_base_model_fixed_condition()
