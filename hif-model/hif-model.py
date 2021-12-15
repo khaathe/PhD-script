@@ -33,10 +33,12 @@ class Simu(ABC):
     GLUCOSE_LOW = 1.0
     GLUCOSE_VERY_LOW = 0.1
 
-    DF_COLUMN_NAMES = ["HIF", "LDH", "PDK", "PDH", "Oxygen Consumed", "Glucose Consumed", "ATP", "H+"]
-    LABELS_PLOT = ["HIF", "LDH", "PDK", "PDH", "Oxygen", "Glucose", "ATP", "H+"]
-    COLOR_PLOT = ["blue", "green", "goldenrod", "grey", "red", "purple", "cyan", "magenta"]
     CONFIG = {'displaylogo': False}
+    VARS_GENES = ["HIF", "LDH", "PDK", "PDH"]
+    VARS_METABOLISM = ["Oxygen Consumed", "Glucose Consumed", "ATP", "H+"]
+    VARS_RATES = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
+    VARS_MICROENVIRONMENT = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
+    
 
     def __init__(self):
         self.initialCondition = None
@@ -109,16 +111,25 @@ class Simu(ABC):
         t = np.arange(tspan[0], tspan[1], dt)
         sol = solve_ivp(self.model, tspan, self.initialCondition, t_eval= t, method='DOP853', args=[self.pOde], rtol = 1e-6, atol=1e-10)
         data = { "Time" : sol.t}
-        for i in range(len(self.DF_COLUMN_NAMES)):
-            data[ self.DF_COLUMN_NAMES[i] ] = sol.y[i]
-        data["Oxygen Consumption Rate"] = self.calculate_rates(data["Oxygen Consumed"], self.pSimu["dt"])
-        data["Glucose Consumption Rate"] = self.calculate_rates(data["Glucose Consumed"], self.pSimu["dt"])
-        data["H+ Production Rate"] = self.calculate_rates(data["H+"], self.pSimu["dt"])
-        data["ATP Production Rate"] = self.calculate_rates(data["ATP"], self.pSimu["dt"])
+        df_column_names = self.VARS_GENES + self.VARS_METABOLISM
+        
+        for i in range(len(df_column_names)):
+            data[ df_column_names[i] ] = sol.y[i]
+        
+        for molecule in ["Oxygen", "Glucose"]:
+            var_rate = "{} Consumption Rate".format(molecule)
+            var_metabolism = "{} Consumed".format(molecule)
+            data[var_rate] = self.calculate_rates(data[var_metabolism], self.pSimu["dt"])
+        
+        for molecule in ["ATP", "H+"]:
+            var_rate = "{} Production Rate".format(molecule)
+            data[var_rate] = self.calculate_rates(data[molecule], self.pSimu["dt"])
+
         data["Oxygen Extracellular"] = [self.getO2Extra(t) for t in sol.t ]
         data["Glucose Extracellular"] = [self.getGlucoseExtra(t) for t in sol.t ]
         data["H+ Extracellular"] = [ self.microenvironment["protonExtraInitial"] + x for x in sol.y[7] ]
         data["pH"] = [ -math.log10(1e-3*x) for x in data["H+ Extracellular"]]
+
         df = pd.DataFrame(data)
         self.solutions = df
             
@@ -180,6 +191,22 @@ class Simu(ABC):
 
     def changeGamma(self, i, j, newValue):
         self.pOde["gamma"][i][j] = newValue
+
+    def plot_rates(self, title=None ):
+        title = "{} - Reaction Rates".format(self.modelName) if title == None else title
+        self.plot_vars(self.VARS_RATES, title)
+
+    def plot_genes(self, title=None ):
+        title = "{} - Genes level".format(self.modelName) if title == None else title
+        self.plot_vars(self.VARS_GENES, title)
+
+    def plot_microenviroment(self, title=None ):
+        title = "{} - Extracellular Concentration".format(self.modelName) if title == None else title
+        self.plot_vars(self.VARS_MICROENVIRONMENT, title)
+
+    def plot_metabolism(self, title=None ):
+        title = "{} - Metabolism (total Consumption and Production)".format(self.modelName) if title == None else title
+        self.plot_vars(self.VARS_METABOLISM, title)
 
 # Genes and Metabolism Separated
 class GMSModel(Simu):
@@ -314,63 +341,62 @@ def run_GMS_model_fixed_condition():
     simulation = GMSModel()
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
-    vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    simulation.plot_vars(vars, "Base Model - Proliferation conditions (no nutrient absence)")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def run_GMC_model_fixed_condition():
     simulation = GMCModel()
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
-    vars = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    simulation.plot_vars(vars, "New Model - Proliferation conditions (no nutrient absence)")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def run_GMC_model_fixed_hypoxia():
     simulation = GMCModel()
     simulation.getO2Extra = lambda t : GMCModel.HYPOXIA
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
-    vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
-    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars(vars_rates, "Base Model With O2 Decreasing - Reaction Rates")
-    simulation.plot_vars(vars_gene, "Base Model With O2 Decreasing - Genes level")
-    simulation.plot_vars(vars_molecule, "Base Model With O2 Decreasing - Nutrient and H+")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
-def run_GMS_model_decreasing_o2():
+def run_GMS_model_hypoxic_period():
     simulation = GMSModel()
     simulation.getO2Extra = hypoxic_period
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
+    simulation.modelName = simulation.modelName + " with Hypoxic Period"
     simulation.run()
-    vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
-    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars(vars_rates, "Base Model With O2 Decreasing - Reaction Rates")
-    simulation.plot_vars(vars_gene, "Base Model With O2 Decreasing - Genes level")
-    simulation.plot_vars(vars_molecule, "Base Model With O2 Decreasing - Nutrient and H+")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
-def run_GMC_model_decreasing_o2():
+def run_GMC_model_hypoxic_period():
     simulation = GMCModel()
     simulation.getO2Extra = hypoxic_period
+    simulation.modelName = simulation.modelName + " with Hypoxic Period"
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
-    vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
-    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars(vars_rates, "New Model With O2 Decreasing - Reaction Rates")
-    simulation.plot_vars(vars_gene, "New Model With O2 Decreasing - Genes level")
-    simulation.plot_vars(vars_molecule, "New Model With O2 Decreasing - Nutrient and H+")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def run_GMC_model_hypoglycemic_period():
     simulation = GMCModel()
     simulation.getGlucoseExtra = hypoglycemia_period
+    simulation.modelName = simulation.modelName + " with Hypoglycemic Period"
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
-    vars_rates = ["Glucose Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    vars_gene = ["Glucose Extracellular", "HIF", "LDH", "PDK", "PDH"]
-    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars(vars_rates, "New Model With Glucose Decreasing - Reaction Rates")
-    simulation.plot_vars(vars_gene, "New Model With Glucose Decreasing - Genes level")
-    simulation.plot_vars(vars_molecule, "New Model With Glucose Decreasing - Nutrient and H+")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def run_GMC_model_physicell_tumor_conditions():
     simulation = GMSModel()
@@ -396,103 +422,103 @@ def run_GMC_model_physicell_tumor_conditions():
 def run_GMC_Model_hif_overexpressed():
     simulation = GMCModel()
     simulation.getO2Extra = hypoxic_period
+    simulation.modelName = simulation.modelName + " with HIF overexpressed"
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.changeGamma(0, 1, 1.0)
     simulation.run()
-    vars = ["Oxygen Extracellular", "Glucose Extracellular",  "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate"]
-    simulation.plot_vars(vars, "HIF Not Degraded")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def run_GMC_Model_pdk_overexpressed():
     simulation = GMCModel()
     simulation.getO2Extra = hypoxic_period
+    simulation.modelName = simulation.modelName + " with PDK overexpressed"
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.changeGamma(1, 3, 8.0)
     simulation.run()
-    vars = ["Oxygen Extracellular", "Glucose Extracellular",  "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate"]
-    simulation.plot_vars(vars, "PDK Overexpressed")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def run_GMC_Model_pdk_deactivated():
     simulation = GMCModel()
     simulation.getO2Extra = hypoxic_period
+    simulation.modelName = simulation.modelName + " with PDK deactivated"
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.056, 5.0, 0.0, 10**(-7.4)/1000]
     simulation.changeGamma(3, 4, 1.0)
     simulation.run()
-    vars = ["Oxygen Extracellular", "Glucose Extracellular",  "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate"]
-    vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
-    simulation.plot_vars(vars, "PDK Deactivated")
-    simulation.plot_vars(vars_gene, "PDK Deactivated - Genes level")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
     
 def run_GMC_Model_hif_overexpressed_and_pdk_deactivated():
     simulation = GMCModel()
     simulation.getO2Extra = hypoxic_period
+    simulation.modelName = simulation.modelName + " with HIF overexpressed + PDK deactivated"
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
     simulation.changeGamma(0, 1, 1.0)
     simulation.changeGamma(3, 4, 1.0)
     simulation.run()
-    vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
-    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    vars_consumption = ["Oxygen Extracellular", "Glucose Extracellular", "Oxygen Consumed", "Glucose Consumed"]
-    simulation.plot_vars(vars_rates, "HIF Not Degraded + PDK Deactivated - Reaction Rates")
-    simulation.plot_vars(vars_gene, "HIF Not Degraded + PDK Deactivated - Genes level")
-    simulation.plot_vars(vars_molecule, "HIF Not Degraded + PDK Deactivated - Nutrient and H+")
-    simulation.plot_vars(vars_consumption, "HIF Not Degraded + PDK Deactivated - Consumption")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def run_PLGC_model_fixed_condition():
     simulation = PLGCModel()
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
-    vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
-    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars(vars_rates, "New Model With O2 Decreasing - Reaction Rates")
-    simulation.plot_vars(vars_gene, "New Model With O2 Decreasing - Genes level")
-    simulation.plot_vars(vars_molecule, "New Model With O2 Decreasing - Nutrient and H+")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def run_PLGC_model_hypoxic_period():
     simulation = PLGCModel()
     simulation.getO2Extra = hypoxic_period
+    simulation.modelName = simulation.modelName + " with Hypoxic Period"
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
-    vars_rates = ["Oxygen Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    vars_gene = ["Oxygen Extracellular", "HIF", "LDH", "PDK", "PDH"]
-    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars(vars_rates, "PLGC Model With O2 Decreasing - Reaction Rates")
-    simulation.plot_vars(vars_gene, "PLGC Model With O2 Decreasing - Genes level")
-    simulation.plot_vars(vars_molecule, "PLGC Model With O2 Decreasing - Nutrient and H+")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def run_PLGC_model_hypoglycemic_period():
     simulation = PLGCModel()
     simulation.getGlucoseExtra = hypoglycemia_period
+    simulation.modelName = simulation.modelName + " with Hypoglycemic Period"
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
-    vars_rates = ["Glucose Extracellular", "Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    vars_gene = ["Glucose Extracellular", "HIF", "LDH", "PDK", "PDH"]
-    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars(vars_rates, "PLGC Model With Glucose Decreasing - Reaction Rates")
-    simulation.plot_vars(vars_gene, "PLGC Model With Glucose Decreasing - Genes level")
-    simulation.plot_vars(vars_molecule, "PLGC Model With Glucose Decreasing - Nutrient and H+")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def run_PLGC_model_fixed_hypoxia_and_hypoglycemia_period():
     simulation = PLGCModel()
     simulation.getO2Extra = hypoxic_period
     simulation.getGlucoseExtra = hypoglycemia_period
+    simulation.modelName = simulation.modelName + " with a Period whithout Nutrient"
     simulation.initialCondition = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
     simulation.run()
-    vars_rates = ["Oxygen Consumption Rate", "Glucose Consumption Rate", "H+ Production Rate", "ATP Production Rate"]
-    vars_gene = ["HIF", "LDH", "PDK", "PDH"]
-    vars_molecule = ["Oxygen Extracellular", "Glucose Extracellular", "H+ Extracellular", "pH"]
-    simulation.plot_vars(vars_rates, "New Model With Both Decreasing - Reaction Rates")
-    simulation.plot_vars(vars_gene, "New Model With Both Decreasing - Genes level")
-    simulation.plot_vars(vars_molecule, "New Model With Both Decreasing - Nutrient and H+")
+    simulation.plot_genes()
+    simulation.plot_rates()
+    simulation.plot_metabolism()
+    simulation.plot_microenviroment()
 
 def compare_GMC_and_PLGC_model_hypoxic_period():
-    run_GMC_model_decreasing_o2()
+    run_GMC_model_hypoxic_period()
     run_PLGC_model_hypoxic_period()
 
 def compare_GMC_and_PLGC_model_hypoglycemic_period():
     run_GMC_model_hypoglycemic_period()
     run_PLGC_model_hypoglycemic_period()
+   
 
 if __name__ == "__main__":
     pass
