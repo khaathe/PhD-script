@@ -381,17 +381,17 @@ def get_contour_h_prod_rate(simulation, title, nbInterval=10):
             colorbar = {
                 "exponentformat" : "e",
                 "showexponent" : "all",
-                "title" : "H+ Production Rate"
+                "title" : "Protons Rate (mmol/L/min)"
             }
         )
     )
     fig.update_layout(
         title = title,
         xaxis = {
-            "title" : "Oxygen"
+            "title" : "Oxygen concentration (mmol/L)"
         },
         yaxis = {
-            "title" : "Glucose"
+            "title" : "Glucose concentration (mmol/L)"
         }
     )
     return fig
@@ -449,7 +449,7 @@ def alter_all_genetic_regulations():
     dir = "/home/spinicck/PhD/Code/output/hif-model/images/contourmap/"
     simulation = PLGCModel()
     simulation.initialCondition = y0
-    get_contour_h_prod_rate(simulation, "ContourMap H+ production rate in various conditions - Normal").write_image(dir + "normal.png", scale=3)
+    get_contour_h_prod_rate(simulation, "Protons production rate in various conditions").write_image(dir + "normal.png", scale=3)
 
     gammas = [ (0,1), (1,2), (1,3), (3, 4) ]
     activation = [1, 40]
@@ -461,7 +461,7 @@ def alter_all_genetic_regulations():
                 simulation.changeGamma(x, y, g)
                 fig = get_contour_h_prod_rate(
                     simulation, 
-                    "ContourMap H+ production rate in various conditions - {}->{} : {}".format(names[x], names[y], g)
+                    "Protons production rate in various conditions- γ{}->{} = {}".format(names[x], names[y], g)
                 )
                 file = dir + "{}_{}_{}.png".format(names[x], names[y], g)
                 fig.write_image(file, scale=3)
