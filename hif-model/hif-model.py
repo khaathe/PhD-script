@@ -25,8 +25,7 @@ hypoxic_period = lambda t : 0.056/(1+math.exp(0.3*(t-480))) + 0.056/(1+math.exp(
 hypoxia_at_8h = lambda t : 0.056/(1+math.exp(0.3*(t-480)))
 hypoglycemia_period = lambda t : 5.0/(1+math.exp(0.3*(t-480))) + 5.0/(1+math.exp(-0.3*(t-960)))
 
-y0_normoxia = [ 3.565, 1.726, 3.31, 0.28, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
-y0_hypoxia = [ 140, 3.8, 6.95, 0.15, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
+y0 = [ 1.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 10**(-7.4)/1000]
 
 class Simu(ABC):
     NORMOXIA = 0.056 # ~5%
@@ -46,7 +45,7 @@ class Simu(ABC):
     def __init__(self):
         self.initialCondition = None
         self.pOde = {
-            "A" : [0.7, 0.005, 0.005, 0.005, 0.005,], # We multiply HIF prod rate by 140 or we should change gamma_O2-> as well
+            "A" : [0.05, 0.005, 0.005, 0.005, 0.005,], # We multiply HIF prod rate by 140 or we should change gamma_O2-> as well
             "D" : [0.005, 0.005, 0.005, 0.005, 0.005,],
             "N" : 4.0,
             "S" : [ 
@@ -57,7 +56,7 @@ class Simu(ABC):
                 [0.0,0.0,0.0,0.0,0.0]
             ],
             "gamma" : [
-                [0.0,40.0,0.0,0.0,0.0],
+                [0.0,10.0,0.0,0.0,0.0],
                 [0.0,0.0,3.81,6.97,0.0],
                 [0.0,0.0,0.0,0.0,0.0],
                 [0.0,0.0,0.0,0.0,0.14],
@@ -244,12 +243,12 @@ class GMCModel(Simu):
         self.pOde.update({
             "pg_max" : 50,
             "pg_min" : 1,
-            "k" : 100,
-            "ldh0" : 2.176675,
+            "k" : 4,
+            "ldh0" : 2.35,
             "po_max" : 1,
             "po_min" : 0.0,
-            "l" : 100,
-            "pdh0" : 0.21245
+            "l" : 15,
+            "pdh0" : 0.575
         })
         self.modelName = "GMC Model"
         self.description = ""
@@ -293,6 +292,33 @@ class PLGCModel(GMCModel):
         Co = po * Vo * ( oExtra/(oExtra+Ko) )
         Cg = ( (pg*A0/2.0) - (27.0*Co/10.0) ) * ( gExtra/(gExtra+Kg) )
         Pa = ( (2.0 * Cg) + ( (27.0/5.0)*Co ) )
+        Ph = Kh * 2 * Cg
+        dxdt[0] = A[0] - D[0] * self.H(oExtra, S[0][1], N, gamma[0][1]) * hif
+        dxdt[1] = A[1] * self.H(hif, S[1][2], N, gamma[1][2]) - D[1] * ldh
+        dxdt[2] = A[2] * self.H(hif, S[1][3], N, gamma[1][3]) - D[2] * pdk
+        dxdt[3] = A[3] * self.H(pdk, S[3][4], N, gamma[3][4]) - D[3] * pdh
+        dxdt[4] = Co
+        dxdt[5] = Cg
+        dxdt[6] = Pa
+        dxdt[7] = Ph
+        return dxdt
+
+class CustomModel(GMCModel):
+    def __init__(self):
+        super().__init__()
+        self.modelName = "Custom Model"
+    
+    def model(self, t, x, p):
+        dxdt = [None] * len(x)
+        hif, ldh, pdk, pdh, oConsumption, gConsumption, atp, h = x
+        A, D, N, S, gamma, Vo, Ko, pg, A0,  Kg, Kh, pg_max, pg_min, k, ldh0, po_max, po_min, l, pdh0 = p.values()
+        oExtra = self.getO2Extra(t)
+        gExtra = self.getGlucoseExtra(t)
+        po = (po_max-po_min)/(1+math.exp(-l*(pdh-pdh0))) + po_min
+        pg = (pg_max-pg_min)/(1+math.exp(-k*(ldh-ldh0))) + pg_min
+        Co = po * Vo * ( oExtra/(oExtra+Ko) )
+        Cg = ( (pg*A0/2.0) - (29.0*Co/10.0) ) * ( gExtra/(gExtra+Kg) )
+        Pa = ( (2.0 * Cg) + ( (29.0/5.0)*Co ) )
         Ph = Kh * 2 * Cg
         dxdt[0] = A[0] - D[0] * self.H(oExtra, S[0][1], N, gamma[0][1]) * hif
         dxdt[1] = A[1] * self.H(hif, S[1][2], N, gamma[1][2]) - D[1] * ldh
@@ -374,7 +400,7 @@ def run_PLGC_Model_hif_overexpressed():
     simulation = PLGCModel()
     simulation.getO2Extra = hypoxic_period
     simulation.modelName = simulation.modelName + " - gamma_Oxygen->HIF = 1"
-    simulation.initialCondition = y0_normoxia
+    simulation.initialCondition = y0
     simulation.changeGamma(0, 1, 1.0)
     simulation.run()
     simulation.get_plot_genes().show()
@@ -386,8 +412,8 @@ def run_PLGC_Model_ldh_overexpressed():
     simulation = PLGCModel()
     simulation.getO2Extra = hypoxic_period
     simulation.modelName = simulation.modelName + " - gamma HIF->LDH = 10"
-    simulation.initialCondition = y0_normoxia
-    simulation.changeGamma(1, 2, 10.0)
+    simulation.initialCondition = y0
+    simulation.changeGamma(1, 2, 40.0)
     simulation.run()
     simulation.get_plot_genes().show()
     simulation.get_plot_rates().show()
@@ -398,7 +424,7 @@ def run_PLGC_Model_pdh_overexpressed():
     simulation = PLGCModel()
     simulation.getO2Extra = hypoxic_period
     simulation.modelName = simulation.modelName + " - gamma PDK->PDH = 1"
-    simulation.initialCondition = y0_normoxia
+    simulation.initialCondition = y0
     simulation.changeGamma(3, 4, 1.0)
     simulation.run()
     simulation.get_plot_genes().show()
@@ -406,11 +432,11 @@ def run_PLGC_Model_pdh_overexpressed():
     simulation.get_plot_metabolism().show()
     simulation.get_plot_microenviroment().show()
     
-def run_GMC_Model_hif_and_pdh_overexpressed():
+def run_PLGC_Model_hif_and_pdh_overexpressed():
     simulation = GMCModel()
     simulation.getO2Extra = hypoxic_period
     simulation.modelName = simulation.modelName + " - gamma Oxygen->HIF = 1, gamma PDK->PDH = 1"
-    simulation.initialCondition = y0_normoxia
+    simulation.initialCondition = y0
     simulation.changeGamma(0, 1, 1.0)
     simulation.changeGamma(3, 4, 1.0)
     simulation.run()
@@ -422,16 +448,16 @@ def run_GMC_Model_hif_and_pdh_overexpressed():
 def alter_all_genetic_regulations():
     dir = "/home/spinicck/PhD/Code/output/hif-model/images/contourmap/"
     simulation = PLGCModel()
-    simulation.initialCondition = y0_normoxia
+    simulation.initialCondition = y0
     get_contour_h_prod_rate(simulation, "ContourMap H+ production rate in various conditions - Normal").write_image(dir + "normal.png", scale=3)
 
     gammas = [ (0,1), (1,2), (1,3), (3, 4) ]
-    activation = [1, 10]
+    activation = [1, 40]
     names = ["O2", "HIF", "LDH", "PDK", "PDH"]
     for (x,y) in gammas:
             for g in activation:
                 simulation = PLGCModel()
-                simulation.initialCondition = y0_normoxia
+                simulation.initialCondition = y0
                 simulation.changeGamma(x, y, g)
                 fig = get_contour_h_prod_rate(
                     simulation, 
@@ -439,6 +465,6 @@ def alter_all_genetic_regulations():
                 )
                 file = dir + "{}_{}_{}.png".format(names[x], names[y], g)
                 fig.write_image(file, scale=3)
-        
+
 if __name__ == "__main__":
     pass
