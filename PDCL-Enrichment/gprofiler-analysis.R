@@ -16,13 +16,13 @@ library(dplyr)
 reactome.gmt.token <- "gp__Nqmx_yxm7_37U"
 bioplanet.gmt.token <- "gp__vB7V_DT57_yNY"
 
-run.gost <- function(genes.symbol, reactome.gmt, bioplanet.gmt){
+run.gost <- function(genes.symbol, domain, reactome.gmt, bioplanet.gmt){
   message("Running Gost ...")
   res <- list()
   res[["reactome"]] <- gost(query = genes.symbol, organism = reactome.gmt, user_threshold = 0.05, 
-                            significant = F,  correction_method = "fdr", evcodes = T)
+                            significant = F,  correction_method = "fdr", evcodes = T, custom_bg = domain)
   res[["bioplanet"]] <- gost(query = genes.symbol, organism = bioplanet.gmt, user_threshold = 0.05,
-                             significant = F, correction_method = "fdr", evcodes = T)
+                             significant = F, correction_method = "fdr", evcodes = T, custom_bg = domain)
   return(res)
 }
 
@@ -31,9 +31,10 @@ run.gost <- function(genes.symbol, reactome.gmt, bioplanet.gmt){
 run.gost.on.file <- function(f, reactome.gmt, bioplanet.gmt, filtering.function){
   message("###### G:Profiler Analysis for : ", f)
   genes.symbol <- read.table(f, header = T, row.names = 1, sep = ",")
+  domain <- row.names(genes.symbol)
   genes.symbol <- filtering.function(genes.symbol)
   genes.symbol <- row.names(genes.symbol)
-  res <- run.gost(genes.symbol, reactome.gmt, bioplanet.gmt)
+  res <- run.gost(genes.symbol, domain, reactome.gmt, bioplanet.gmt)
   return(res)
 }
 
@@ -87,7 +88,6 @@ saveRDS(deseq2.gostres, file = "Result/PDCL/gost_deseq2_genes.rds")
 deseq2.enrichment <- lapply(deseq2.gostres, convert.gost.to.gem)
 save.gem.list.to.txt(deseq2.enrichment, "Result/PDCL/gprofiler/deseq2/", "deseq2")
 
-
 ######### RUn G:Profiler for Limma result
 limma.res.dir <- "Result/PDCL/limma/"
 limma.res.files <- list.files(limma.res.dir)
@@ -109,7 +109,7 @@ names(penda.res) <- pdcl.samples.names
 all.pdcl.gene <- row.names(penda.res)
 penda.gost.res <- lapply(penda.res, function(patient){
   gene.list <- all.pdcl.gene[patient != 0]
-  res <- run.gost(gene.list, reactome.gmt.token, bioplanet.gmt.token)
+  res <- run.gost(gene.list, all.pdcl.gene, reactome.gmt.token, bioplanet.gmt.token)
   return(res)
 })
 saveRDS(penda.gost.res, file = "Result/PDCL/gost_penda_genes.rds")
