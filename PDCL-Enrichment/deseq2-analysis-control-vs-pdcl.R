@@ -43,7 +43,7 @@ for ( patient in pdcl.samples.name ){
   dds <- DESeq(dds)
   res <- results(dds, alpha = 0.05)
   deseq2.res.list[[patient]] <- res # store the result in a list for later data propcessing
-  res.file <- paste0("Result/PDCL/deseq2/deseq2_", patient, "_vs_control.csv")
+  res.file <- paste0("Result/PDCL/deseq2/deseq2_", patient, ".csv")
   message("Writing result to file : ", res.file)
   write.csv(as.data.frame(res), file = res.file)
   message("Done !")
