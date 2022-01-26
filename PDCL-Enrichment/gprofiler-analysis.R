@@ -1,20 +1,6 @@
-setwd("/home/spinicck/PhD/")
-
-######### Remove every variable in memory
-rm(list = ls())
-
 ######## Load Library needed
 library(gprofiler2)
 library(dplyr)
-
-######### Upload GMT File before running G:Profiler Enrichment Analysis
-# This portion is commented because the file are already uploaded, use the gmt token instead
-# reactome.gmt.token <- upload_GMT_file(gmtfile = "Data/gene-set/jorge-gmt/reactome_gmt_symbol_no_unwanted_categ_no_less_10.gmt")
-# bioplanet.gmt.token <- upload_GMT_file(gmtfile = "Data/gene-set/jorge-gmt/bioplanet_gmt_symbol_no_unwanted_categ_no_less_10.gmt")
-
-######### Define GMT token to use for Enrichment Analysis
-reactome.gmt.token <- "gp__Nqmx_yxm7_37U"
-bioplanet.gmt.token <- "gp__vB7V_DT57_yNY"
 
 run.gost <- function(genes.symbol, domain, reactome.gmt, bioplanet.gmt){
   message("Running Gost ...")
@@ -75,43 +61,3 @@ get.analysis.name <- function(file.name){
   analysis.name <- sub(".+/(deseq2|limma)_", "", analysis.name, perl = T, ignore.case = T)
   return(analysis.name)
 }
-
-######### RUn G:Profiler for DESeq2 result
-deseq2.res.dir <- "Result/PDCL/deseq2/"
-deseq2.res.files <- list.files(deseq2.res.dir)
-deseq2.res.files <- paste0(deseq2.res.dir, deseq2.res.files)
-deseq2.gostres <- lapply(deseq2.res.files, run.gost.on.file, reactome.gmt.token, bioplanet.gmt.token, function(x) { 
-    as.data.frame(x) %>% filter(padj<0.1 & !is.na(padj))
-})
-names(deseq2.gostres) <- sapply(deseq2.res.files, get.analysis.name)
-saveRDS(deseq2.gostres, file = "Result/PDCL/gost_deseq2_genes.rds")
-deseq2.enrichment <- lapply(deseq2.gostres, convert.gost.to.gem)
-save.gem.list.to.txt(deseq2.enrichment, "Result/PDCL/gprofiler/deseq2/", "deseq2")
-
-######### RUn G:Profiler for Limma result
-limma.res.dir <- "Result/PDCL/limma/"
-limma.res.files <- list.files(limma.res.dir)
-limma.res.files <- paste0(limma.res.dir, limma.res.files)
-limma.gostres <- lapply(limma.res.files, run.gost, reactome.gmt.token, bioplanet.gmt.token, function(x) { 
-  as.data.frame(x) %>% filter(adj.P.Val<0.1 & !is.na(adj.P.Val))
-})
-names(limma.gostres) <- sapply(limma.res.files, get.analysis.name)
-saveRDS(limma.gostres, file = "Result/PDCL/gost_limma_genes.rds")
-limma.enrichment <- lapply(limma.gostres, convert.gost.to.gem)
-save.gem.list.to.txt(limma.enrichment, "Result/PDCL/gprofiler/limma/", "limma")
-
-######### RUn G:Profiler for PENDA result
-penda.res.file <- "Data/PDCL/results_combine.csv"
-penda.res <- read.table(penda.res.file, sep = ";", header = T, row.names = 1, check.names = F)
-pdcl.samples.names <- names(penda.res)
-pdcl.samples.names <- sub(".genes.results", "", pdcl.samples.names, ignore.case = T)
-names(penda.res) <- pdcl.samples.names
-all.pdcl.gene <- row.names(penda.res)
-penda.gost.res <- lapply(penda.res, function(patient){
-  gene.list <- all.pdcl.gene[patient != 0]
-  res <- run.gost(gene.list, all.pdcl.gene, reactome.gmt.token, bioplanet.gmt.token)
-  return(res)
-})
-saveRDS(penda.gost.res, file = "Result/PDCL/gost_penda_genes.rds")
-penda.enrichment <- lapply(penda.gost.res, convert.gost.to.gem)
-save.gem.list.to.txt(penda.enrichment, "Result/PDCL/gprofiler/penda/", "penda")

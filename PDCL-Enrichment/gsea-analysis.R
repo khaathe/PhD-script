@@ -1,20 +1,7 @@
-setwd("/home/spinicck/PhD/")
-
-######### Remove every variable in memory
-rm(list = ls())
-
 ######## Load Library needed
 library(fgsea)
 library(dplyr)
 library(tidyr)
-
-#IMPORTANT!! We must choose a seed to ensure the analysis is reproducible. This is because GSEA uses a 
-#permutation test to span the null distribution of the statistic. Hence, each time we run it, results are 
-#expected to change slightly.
-set.seed(1)
-
-reactome.gmt <- gmtPathways("Data/gene-set/jorge-gmt/reactome_gmt_symbol_no_unwanted_categ_no_less_10.gmt")
-bioplanet.gmt <- gmtPathways("Data/gene-set/jorge-gmt/bioplanet_gmt_symbol_no_unwanted_categ_no_less_10.gmt")
 
 # run gsea analysis with reactome and bioplanet GMT files for a list of DE analysis result
 run.gsea <- function(f, reactome.gmt, bioplanet.gmt, create.ranked.list){
@@ -60,35 +47,3 @@ convert.gsea.to.gem <- function(res){
       tidyr::drop_na()
   })
 }
-
-######### Run GSEA for DESeq2 result
-deseq2.res.dir <- "Result/PDCL/deseq2/"
-deseq2.res.files <- list.files(deseq2.res.dir)
-deseq2.res.files <- paste0(deseq2.res.dir, deseq2.res.files)
-deseq2.gsea <- lapply(deseq2.res.files, run.gsea, reactome.gmt, bioplanet.gmt, function(f) { 
-  x <- read.table(f, header = T, sep = ",")
-  x <- as.data.frame(x) %>% transmute(rank=log2FoldChange, gene=X) %>% arrange(desc(rank))
-  rnk <- x$rank
-  names(rnk) <- x$gene
-  rnk
-})
-names(deseq2.gsea) <- sapply(deseq2.res.files, get.analysis.name)
-saveRDS(deseq2.gsea, file = "Result/PDCL/gsea_deseq2_genes.rds")
-deseq2.gem <- lapply(deseq2.gsea, convert.gsea.to.gem)
-save.gem.list.to.txt(deseq2.gem, "Result/PDCL/gsea/deseq2/", "deseq2")
-
-######### Run GSEA for Limma result
-limma.res.dir <- "Result/PDCL/limma/"
-limma.res.files <- list.files(limma.res.dir)
-limma.res.files <- paste0(limma.res.dir, limma.res.files)
-limma.gsea <- lapply(limma.res.files, run.gsea, reactome.gmt, bioplanet.gmt, function(f) { 
-  x <- read.table(f, header = T, sep = ",")
-  x <- as.data.frame(x) %>% transmute(rank=logFC, gene=X) %>% arrange(desc(rank))
-  rnk <- x$rank
-  names(rnk) <- x$gene
-  rnk
-})
-names(limma.gsea) <- sapply(limma.res.files, get.analysis.name)
-saveRDS(limma.gsea, file = "Result/PDCL/gsea_limma_genes.rds")
-limma.gem <- lapply(limma.gsea, convert.gsea.to.gem)
-save.gem.list.to.txt(limma.gem, "Result/PDCL/gsea/limma/", "limma")

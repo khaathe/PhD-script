@@ -1,0 +1,221 @@
+---
+title: "PDCL Process"
+---
+
+```{r echo=FALSE, include=FALSE}
+# clean workspace
+rm(list=ls()) 
+
+# Load required libraries (others are load directly in sourced files)
+library(DESeq2)
+library(dplyr)
+
+# Source files with functions used in next steps
+source("Code/PDCL-Enrichment/gprofiler-analysis.R")
+source("Code/PDCL-Enrichment/gsea-analysis.R")
+source("Code/PDCL-Enrichment/common-deregulated-pathways.R")
+```
+
+# 1. Differential Analysis with DESeq2
+
+## Load controls
+```{r}
+astrocyte.file <- "Data/PDCL/astrocyte_GSE109001_counts_unique_genes_samples_filtered.txt"
+astrocyte.dt <- read.table(astrocyte.file, header = T, sep = "\t", as.is = c("id", "symbol"))
+control.samples.names <- c(
+  "AF22_NES_Astro_Br1_d29_37_S46",
+  "AF22_NES_Astro_Br2_d29_38_S56",
+  "AF22_NES_Astro_Br3_d29_39_S66",
+  "CCF.STTG1_p24_Br1_S16",
+  "CCF.STTG1_p24_Br2_S17",
+  "CCF.STTG1_p24_Br3_S18",
+  "CDIAstrocytes_p2_Br1_S19",
+  "CDIAstrocytes_p2_Br2_S20",
+  "CDIAstrocytes_p2_Br3_S21",
+  "phaAstrocyte_p2_Br1_S1",
+  "phaAstrocyte_p2_Br2_S2",
+  "phaAstrocyte_p2_Br3_S3"
+  )
+```
+
+## Load PDCL DataBase
+
+Load the PDCL count table
+Disabled check.names otherwise it will an X as column names aren't valid according to R
+```{r}
+pdcl.count.table <- read.table("/home/spinicck/PhD/Data/PDCL/lignees_count_genes_PDCL.txt", sep = "\t", header = T, as.is = "gene_id", check.names = F)
+pdcl.samples.name <- c(
+  "4339-p21",
+  "4371-p37",
+  "5706-p14",
+  "6190-p43",
+  "6240-p12",
+  "7015-p17",
+  "7060-p18", 
+  "7142-p14",
+  "N13-1300",
+  "N13-1520-p9",
+  "N14-0072",
+  "N14-0870",
+  "N14-1208",
+  "N14-1525",
+  "N15_0460",
+  "N15_0516",
+  "N15-0385",
+  "N15-0661",
+  "N16_0535",
+  "N16-0240"
+  )
+```
+
+## Prepare Object needed by DESeq2 for Analysis
+
+```{r}
+count.data <- merge(astrocyte.dt, pdcl.count.table, by.x = "symbol", by.y = "gene_id")
+row.names(count.data) <- count.data$symbol
+count.data <- count.data[,-2:-1]
+condition.vect <- c(rep("control", length(control.samples.names)), rep("pdcl", length(pdcl.samples.name)))
+col.data <- data.frame(sample = c(control.samples.names, pdcl.samples.name), condition=condition.vect)
+col.data$condition <- as.factor(col.data$condition)
+deseq2.res.list <- list()
+```
+
+## Perform Differential Analysis
+
+Perform a differential analysis for each patient in the database against the controls
+```{r echo=FALSE}
+for ( patient in pdcl.samples.name ){
+  message("#### DESeq2 Analysis for : ", patient)
+  dataset.samples <- c(control.samples.names, patient)
+  dataset.matrix <- count.data[,dataset.samples]
+  dataset.coldata <- col.data[ col.data$sample %in% dataset.samples, ]
+  dds <- DESeqDataSetFromMatrix(countData = dataset.matrix, colData = dataset.coldata, design = ~condition)
+  dds <- DESeq(dds)
+  res <- results(dds, alpha = 0.05)
+  deseq2.res.list[[patient]] <- res # store the result in a list for later data propcessing
+  res.file <- paste0("Result/PDCL/deseq2/deseq2_", patient, ".csv")
+  write.csv(as.data.frame(res), file = res.file)
+}
+```
+
+Save Result
+
+```{r}
+saveRDS(deseq2.res.list, file = "Result/PDCL/deseq2_pdcl_vs_control.rds")
+```
+
+# 2. GSEA Analysis for DESeq2 result
+
+IMPORTANT!! 
+We must choose a seed to ensure the analysis is reproducible. This is because GSEA uses a 
+permutation test to span the null distribution of the statistic. Hence, each time we run it, results are 
+expected to change slightly.
+```{r}
+set.seed(1)
+```
+
+
+```{r}
+reactome.gmt <- gmtPathways("Data/gene-set/jorge-gmt/reactome_gmt_symbol_no_unwanted_categ_no_less_10.gmt")
+bioplanet.gmt <- gmtPathways("Data/gene-set/jorge-gmt/bioplanet_gmt_symbol_no_unwanted_categ_no_less_10.gmt")
+```
+
+Run GSEA for DESeq2 result
+```{r}
+deseq2.res.dir <- "Result/PDCL/deseq2/"
+deseq2.res.files <- list.files(deseq2.res.dir)
+deseq2.res.files <- paste0(deseq2.res.dir, deseq2.res.files)
+deseq2.gsea <- lapply(deseq2.res.files, run.gsea, reactome.gmt, bioplanet.gmt, function(f) { 
+  x <- read.table(f, header = T, sep = ",")
+  x <- as.data.frame(x) %>% transmute(rank=log2FoldChange, gene=X) %>% arrange(desc(rank))
+  rnk <- x$rank
+  names(rnk) <- x$gene
+  rnk
+})
+names(deseq2.gsea) <- sapply(deseq2.res.files, get.analysis.name)
+saveRDS(deseq2.gsea, file = "Result/PDCL/gsea_deseq2_genes.rds")
+deseq2.gem <- lapply(deseq2.gsea, convert.gsea.to.gem)
+save.gem.list.to.txt(deseq2.gem, "Result/PDCL/gsea/deseq2/", "deseq2")
+```
+
+
+
+# 3. GProfiler Analysis for PENDA resuls
+
+Upload GMT File before running G:Profiler Enrichment Analysis
+```{r}
+# This portion is commented because the file are already uploaded, use the gmt token instead
+# reactome.gmt.token <- upload_GMT_file(gmtfile = "Data/gene-set/jorge-gmt/reactome_gmt_symbol_no_unwanted_categ_no_less_10.gmt")
+# bioplanet.gmt.token <- upload_GMT_file(gmtfile = "Data/gene-set/jorge-gmt/bioplanet_gmt_symbol_no_unwanted_categ_no_less_10.gmt")
+```
+
+Define GMT token to use for Enrichment Analysis
+```{r}
+reactome.gmt.token <- "gp__Nqmx_yxm7_37U"
+bioplanet.gmt.token <- "gp__vB7V_DT57_yNY"
+```
+
+Run G:Profiler for PENDA result
+```{r}
+penda.res.file <- "Data/PDCL/results_combine.csv"
+penda.res <- read.table(penda.res.file, sep = ";", header = T, row.names = 1, check.names = F)
+pdcl.samples.names <- names(penda.res)
+pdcl.samples.names <- sub(".genes.results", "", pdcl.samples.names, ignore.case = T)
+names(penda.res) <- pdcl.samples.names
+all.pdcl.gene <- row.names(penda.res)
+penda.gost.res <- lapply(penda.res, function(patient){
+  gene.list <- all.pdcl.gene[patient != 0]
+  res <- run.gost(gene.list, all.pdcl.gene, reactome.gmt.token, bioplanet.gmt.token)
+  return(res)
+})
+```
+
+Save Result in RDS
+```{r}
+saveRDS(penda.gost.res, file = "Result/PDCL/gost_penda_genes.rds")
+```
+
+Save Result in Enrichment Format
+```{r}
+penda.enrichment <- lapply(penda.gost.res, convert.gost.to.gem)
+save.gem.list.to.txt(penda.enrichment, "Result/PDCL/gprofiler/penda/", "penda")
+```
+
+# 4. Find common deregulated pathways
+
+Load PENDA+G:Profiler and DESeq2+GSEA results
+```{r}
+gost.penda.rds <- readRDS("Result/PDCL/gost_penda_genes.rds")
+gsea.deseq2.rds <- readRDS("Result/PDCL/gsea_deseq2_genes.rds")
+```
+
+```{r}
+patient <-names(gost.penda.rds)
+database <- c("bioplanet", "reactome")
+common.deregulated.pathways <- lapply(patient, get.all.common.deregulated.pathways, gost.penda.rds, gsea.deseq2.rds, database)
+names(common.deregulated.pathways) <- patient
+save.result(common.deregulated.pathways, "Result/PDCL/common_pathways/")
+```
+
+# 5. Analyze Result
+
+## Collapse results
+Here we collapse the result from GProfiler and GSEA into one data.frame so it
+is easier to plot graph with ggplot.
+
+```{r}
+collapsed <- data.frame()
+for (pdcl in pdcl.samples.name){
+  for (db in db.source) {
+    gost <- gost.penda.gem[[pdcl]][[db]]
+    gsea <- gsea.deseq2.gem[[pdcl]][[db]]
+    join <- gost %>% 
+      full_join(gsea, by = "pathway_id") %>%
+      rename(p_value_gprofiler = p_value.x, p_value_gsea = p_value.y, fdr_gprofiler = fdr.x, fdr_gsea = fdr.y) %>%
+      select(pathway_id, p_value_gprofiler, fdr_gprofiler, p_value_gsea, fdr_gsea) %>%
+      mutate(pdcl = pdcl, db = db) 
+    collapsed <- rbind(collapsed, join)
+  }
+}
+```
+

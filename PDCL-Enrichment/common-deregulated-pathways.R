@@ -1,20 +1,6 @@
-setwd("/home/spinicck/PhD/")
-
-######### Remove every variable in memory
-rm(list = ls())
-
 ######## Load Library needed
 library(dplyr)
 library(tidyr)
-
-######## Load PENDA+G:Profiler and DESeq2+GSEA results
-gost.penda.rds <- readRDS("Result/PDCL/gost_penda_genes.rds")
-gsea.deseq2.rds <- readRDS("Result/PDCL/gsea_deseq2_genes.rds")
-
-names(gsea.deseq2.rds) <- gsub("_vs_control", "", names(gsea.deseq2.rds))
-
-patient <-names(gost.penda.rds)
-database <- c("bioplanet", "reactome")
 
 # Filter G:Profiler result to keep only pathways deregulated, and turn the result in GEM format
 filter.gprofiler.pathways <- function(gost){
@@ -73,7 +59,3 @@ save.result <- function(pathways.list, save.dir){
     }
   }
 }
-
-common.deregulated.pathways <- lapply(patient, get.all.common.deregulated.pathways, gost.penda.rds, gsea.deseq2.rds, database)
-names(common.deregulated.pathways) <- patient
-save.result(common.deregulated.pathways, "Result/PDCL/common_pathways/")
