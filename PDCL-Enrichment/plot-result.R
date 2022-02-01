@@ -18,22 +18,6 @@ collapse.data <- function(gost.penda.gem, gsea.deseq2.gem, pdcl.samples.name, db
   collapsed
 }
 
-collapse.data.by.method <- function(gost.penda.gem, gsea.deseq2.gem, pdcl.samples.name, db.source){
-  collapsed <- data.frame()
-  for (pdcl in pdcl.samples.name){
-    for (db in db.source) {
-      gost <- gost.penda.gem[[pdcl]][[db]]
-      gost$method <- "gprofiler"
-      gsea <- gsea.deseq2.gem[[pdcl]][[db]]
-      gsea$method <- "gsea"
-      join <- bind_rows(gost, gsea) %>%
-        mutate(pdcl = pdcl, db = db) 
-      collapsed <- rbind(collapsed, join)
-    }
-  }
-  collapsed
-}
-
 plot.gprofiler.vs.gsea <- function(x, threshold = 0.1){
   data <- na.omit(x)
   data$is.common <- ( data$fdr_gprofiler<threshold & data$fdr_gsea<threshold )
