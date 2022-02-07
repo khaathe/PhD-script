@@ -117,12 +117,9 @@ assign.categories <- function(x){
   data
 }
 
-plot.gprofiler.vs.gsea <- function(x, threshold){
-  data <- na.omit(x)
-  is.common <- ( data$fdr_gprofiler<threshold & data$fdr_gsea<threshold )
-  data$is.common <- factor(is.common, levels = c("TRUE", "FALSE"), labels = c("Common Pathways", "Specific Pathways"))
+plot.gprofiler.vs.gsea <- function(x){
   ggplot(
-    data = data, 
+    data = x, 
     aes(
       x = -log10(fdr_gprofiler), 
       y = -log10(fdr_gsea),
@@ -132,6 +129,7 @@ plot.gprofiler.vs.gsea <- function(x, threshold){
     geom_point(
       size = 0.5
     ) +
+    scale_colour_manual(values = c("red", "grey30")) +
     facet_wrap(vars(pdcl)) +
     labs(
       title = "pvalue G:Profiler against GSEA",
@@ -147,26 +145,18 @@ plot.gprofiler.vs.gsea <- function(x, threshold){
     ) 
 }
 
-plot.count.pathways <- function(x, threshold){
-  data <- x
-  data <- na.omit(data)
-  is.common <- ( data$fdr_gprofiler<threshold & data$fdr_gsea<threshold )
-  data$is.common <- factor(is.common, levels = c("TRUE", "FALSE"), labels = c("Common Pathways", "Specific Pathways"))
-  gprofiler <- data[(data$fdr_gprofiler < threshold),]
-  gprofiler$method <- "gprofiler"
-  gsea <- data[(data$fdr_gsea < threshold),]
-  gsea$method <- "gsea"
-  data <- rbind(gprofiler, gsea)
+plot.count.pathways <- function(x){
   ggplot(
-    data = data, 
+    data = x, 
     aes(x = pdcl, fill = is.common )
   ) +
     geom_bar() +
+    scale_fill_manual(values = c("red", "steelblue")) + 
     labs(
       title = "Number of enriched pathways for each enrichment method",
       subtitle = paste0("Threshold alpha : ", threshold),
       x = "PDCL",
-      y = "Count",
+      y = "Counts",
       fill = ""
     ) +
     facet_wrap(vars(method)) +
@@ -174,27 +164,24 @@ plot.count.pathways <- function(x, threshold){
       plot.title = element_text(hjust = 0.5,face = "bold",color = "red"),
       plot.subtitle = element_text(hjust = 0.5,face = "italic",color = "blue"),
       axis.text.x = element_text(angle = 90)
-    ) 
+    )  +
+    #We need to specify this. If not, unpopulated categories do not appear
+    scale_x_discrete(drop = F)
 }
 
-plot.count.categories <- function(x, threshold){
-  gprofiler <- x %>%
-    filter(!undesired & fdr_gprofiler < threshold) %>%
-    mutate(method = "gprofiler")
-  gsea <- x %>%
-    filter(!undesired & fdr_gsea < threshold) %>%
-    mutate(method = "gsea")
-  
-  data <- rbind(gprofiler, gsea) %>%
-    filter(!is.na(category))
-  
-  ggplot(data,aes(x = category)) +
-    geom_bar(fill = "steelblue",) +
+plot.count.categories <- function(x){
+  ggplot(
+    x,
+    aes(x = category, fill = is.common)
+  ) +
+    geom_bar() +
+    scale_fill_manual(values = c("red", "steelblue")) +
     facet_wrap(~method) +
     labs(x = "Category name",
          y = "Counts",
          title = "Total number of enriched pathways in a category for each enrichment method",
-         subtitle = "Pathway information source: Reactome + Bioplanet"
+         subtitle = "Pathway information source: Reactome + Bioplanet",
+         fill = ""
     ) +
     theme(
       plot.title = element_text(hjust = 0.5,face = "bold",color = "red"),
@@ -202,16 +189,14 @@ plot.count.categories <- function(x, threshold){
       axis.text.x = element_text(angle = 90)
     ) +
     #We need to specify this. If not, unpopulated categories do not appear
-    scale_fill_discrete(drop = F) +
     scale_x_discrete(drop = F)
 }
 
 heatmap.pathways <- function(x){
-  data <- x
-  data <- na.omit(data)
+  data <- x %>% filter(is.common == "Common Pathways")
   ggplot(
     data = data, 
-    aes(x = pdcl, y = pathway_id, fill =  fdr_gprofiler)
+    aes(x = pdcl, y = pathway_id, fill =  fdr)
   ) +
     geom_raster() +
     labs(
@@ -219,5 +204,21 @@ heatmap.pathways <- function(x){
       x = "PDCL",
       y = "Pathway"
     ) +
+    facet_wrap(vars(method)) +
     theme(axis.text.x = element_text(angle = 90) ) 
+}
+
+heatmap.categories <- function(x){
+  ggplot(
+    data = x,
+    aes(x = pdcl, y = category, fill = n)
+  ) + 
+    geom_raster() +
+    labs(
+      title = "Heatmap",
+      x = "PDCL",
+      y = "Categories"
+    ) +
+    facet_wrap(~method) +
+    theme(axis.text.x = element_text(angle = 90) )
 }
