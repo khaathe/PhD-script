@@ -14,6 +14,7 @@ library(dplyr)
 source("Code/PDCL-Enrichment/gprofiler-analysis.R")
 source("Code/PDCL-Enrichment/gsea-analysis.R")
 source("Code/PDCL-Enrichment/common-deregulated-pathways.R")
+source("Code/PDCL-Enrichment/plot-result.R")
 ```
 
 # 1. Differential Analysis with DESeq2
@@ -204,18 +205,160 @@ Here we collapse the result from GProfiler and GSEA into one data.frame so it
 is easier to plot graph with ggplot.
 
 ```{r}
-collapsed <- data.frame()
-for (pdcl in pdcl.samples.name){
-  for (db in db.source) {
-    gost <- gost.penda.gem[[pdcl]][[db]]
-    gsea <- gsea.deseq2.gem[[pdcl]][[db]]
-    join <- gost %>% 
-      full_join(gsea, by = "pathway_id") %>%
-      rename(p_value_gprofiler = p_value.x, p_value_gsea = p_value.y, fdr_gprofiler = fdr.x, fdr_gsea = fdr.y) %>%
-      select(pathway_id, p_value_gprofiler, fdr_gprofiler, p_value_gsea, fdr_gsea) %>%
-      mutate(pdcl = pdcl, db = db) 
-    collapsed <- rbind(collapsed, join)
-  }
-}
+db.source <- ("reactome")
+
+collapsed <- collapse.data.by.pathways(gost.enrich, gsea.enrich, pdcl.samples.name, db.source)
+collapsed <- assign.categories(collapsed)
+
+collapsed <- collapsed %>% 
+  filter(!(undesired | is.na(category)))
+
+collapsed$category <- factor(
+  collapsed$category,
+  levels = names(word_list)
+)
+
+collapsed$pdcl <- factor(
+  collapsed$pdcl,
+  levels = pdcl.samples.name
+)
+
+collapsed.by.method <- collapse.data.by.method(collapsed)
+```
+
+## Plot Results with alpha = 0.05
+
+```{r}
+threshold <- 0.05
+
+common_pathway_0.05 <- find.common.pathways(collapsed, threshold)
+all_result_0.05 <- collapsed %>% inner_join(common_pathway_0.05, by=c("pathway_id", "pdcl"))
+all_result_by_method_0.05 <- collapsed.by.method %>% inner_join(common_pathway_0.05, by=c("pathway_id", "pdcl"))
+result_by_method_0.05 <- all_result_by_method_0.05 %>% filter(fdr < threshold)
+count_0.05 <- result_by_method_0.05 %>% dplyr::count(method, pdcl, category, .drop = F)
+```
+
+
+```{r}
+gprofiler_vs_gsea_0.05 <- plot.gprofiler.vs.gsea(all_result_0.05)
+gprofiler_vs_gsea_0.05 
+# ggsave(
+#   "~/PhD/Result/PDCL/result_0.05/plot_gprofiler_vs_gsea.png",
+#   plot = gprofiler_vs_gsea_0.05,
+#   width = 10
+# )
+```
+
+
+```{r}
+count_categories_0.05 <- plot.count.categories(result_by_method_0.05)
+count_categories_0.05 
+# ggsave(
+#   "~/PhD/Result/PDCL/result_0.05/plot_count_categories.png",
+#   plot = count_categories_0.05,
+#   width = 10
+# )
+```
+
+
+```{r}
+count_pathways_0.05 <- plot.count.pathways(result_by_method_0.05)
+count_pathways_0.05 
+# ggsave(
+#   "~/PhD/Result/PDCL/result_0.05/plot_count_pathways.png",
+#   plot = count_pathways_0.05,
+#   width = 10
+# )
+```
+
+
+```{r}
+heatmap_pathways_0.05 <- heatmap.pathways(all_result_by_method_0.05)
+heatmap_pathways_0.05 
+# ggsave(
+#   "~/PhD/Result/PDCL/result_0.05/heatmap_pathways.png",
+#   plot = heatmap_pathways_0.05,
+#   width = 10
+# )
+```
+
+
+
+```{r}
+heatmap_categories_0.05 <- heatmap.categories(count_0.05)
+heatmap_categories_0.05 
+# ggsave(
+#   "~/PhD/Result/PDCL/result_0.05/heatmap_categories.png",
+#   plot = heatmap_categories_0.05,
+#   width = 10
+# )
+```
+
+## Plot Results with alpha = 0.1
+
+```{r}
+threshold <- 0.1
+
+common_pathway_0.1 <- find.common.pathways(collapsed, threshold)
+all_result_0.1 <- collapsed %>% inner_join(common_pathway_0.1, by=c("pathway_id", "pdcl"))
+all_result_by_method_0.1 <- collapsed.by.method %>% inner_join(common_pathway_0.1, by=c("pathway_id", "pdcl"))
+result_by_method_0.1 <- all_result_by_method_0.1 %>% filter(fdr < threshold)
+count_0.1 <- result_by_method_0.1 %>% dplyr::count(method, pdcl, category, .drop = F)
+```
+
+
+```{r}
+gprofiler_vs_gsea_0.1 <- plot.gprofiler.vs.gsea(all_result_0.1)
+gprofiler_vs_gsea_0.1 
+# ggsave(
+#   "~/PhD/Result/PDCL/result_0.1/plot_gprofiler_vs_gsea.png",
+#   plot = gprofiler_vs_gsea_0.1,
+#   width = 10
+# )
+```
+
+
+```{r}
+count_categories_0.1 <- plot.count.categories(result_by_method_0.1)
+count_categories_0.1 
+# ggsave(
+#   "~/PhD/Result/PDCL/result_0.1/plot_count_categories.png",
+#   plot = count_categories_0.1,
+#   width = 10
+# )
+```
+
+
+```{r}
+count_pathways_0.1 <- plot.count.pathways(result_by_method_0.1)
+count_pathways_0.1 
+# ggsave(
+#   "~/PhD/Result/PDCL/result_0.1/plot_count_pathways.png",
+#   plot = count_pathways_0.1,
+#   width = 10
+# )
+```
+
+
+```{r}
+heatmap_pathways_0.1 <- heatmap.pathways(all_result_by_method_0.1)
+heatmap_pathways_0.1 
+# ggsave(
+#   "~/PhD/Result/PDCL/result_0.1/heatmap_pathways.png",
+#   plot = heatmap_pathways_0.1,
+#   width = 10
+# )
+```
+
+
+
+```{r}
+heatmap_categories_0.1 <- heatmap.categories(count_0.1)
+heatmap_categories_0.1 
+# ggsave(
+#   "~/PhD/Result/PDCL/result_0.1/heatmap_categories.png",
+#   plot = heatmap_categories_0.1,
+#   width = 10
+# )
 ```
 
