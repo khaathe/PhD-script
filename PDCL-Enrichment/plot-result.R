@@ -93,7 +93,7 @@ collapse.data.by.pathways <- function(gost.penda.gem, gsea.deseq2.gem, pdcl.samp
       gsea <- gsea.deseq2.gem[[pdcl]][[db]]
       join <- gost %>% 
         full_join(gsea, by = "pathway_id") %>%
-        rename(p_value_gprofiler = p_value.x, p_value_gsea = p_value.y, fdr_gprofiler = fdr.x, fdr_gsea = fdr.y) %>%
+        dplyr::rename(p_value_gprofiler = p_value.x, p_value_gsea = p_value.y, fdr_gprofiler = fdr.x, fdr_gsea = fdr.y) %>%
         select(pathway_id, p_value_gprofiler, fdr_gprofiler, p_value_gsea, fdr_gsea) %>%
         mutate(pdcl = pdcl, db = db) 
       collapsed <- rbind(collapsed, join)
@@ -105,12 +105,12 @@ collapse.data.by.pathways <- function(gost.penda.gem, gsea.deseq2.gem, pdcl.samp
 collapse.data.by.method <- function(collapsed.by.pathways){
   gprofiler <- collapsed.by.pathways %>%
     select(pathway_id, fdr_gprofiler, pdcl, db, category) %>%
-    rename(fdr = fdr_gprofiler) %>%
+    dplyr::rename(fdr = fdr_gprofiler) %>%
     mutate(method = "gprofiler")
   
   gsea <- collapsed.by.pathways %>%
     select(pathway_id, fdr_gsea, pdcl, db, category) %>%
-    rename(fdr = fdr_gsea) %>%
+    dplyr::rename(fdr = fdr_gsea) %>%
     mutate(method = "gsea")
   
   rbind(gprofiler, gsea)
