@@ -85,7 +85,7 @@ word_list <- list(
                             "^(?=.*insulin)(?=.*(recept|stimulus|process)).*$","insulin-like","\\bp38","oncostatin")
 )
 
-collapse.data <- function(gost.penda.gem, gsea.deseq2.gem, pdcl.samples.name, db.source){
+collapse.data.by.pathways <- function(gost.penda.gem, gsea.deseq2.gem, pdcl.samples.name, db.source){
   collapsed <- data.frame()
   for (pdcl in pdcl.samples.name){
     for (db in db.source) {
@@ -100,6 +100,36 @@ collapse.data <- function(gost.penda.gem, gsea.deseq2.gem, pdcl.samples.name, db
     }
   }
   collapsed
+}
+
+collapse.data.by.method <- function(collapsed.by.pathways){
+  gprofiler <- collapsed.by.pathways %>%
+    select(pathway_id, fdr_gprofiler, pdcl, db, category) %>%
+    rename(fdr = fdr_gprofiler) %>%
+    mutate(method = "gprofiler")
+  
+  gsea <- collapsed.by.pathways %>%
+    select(pathway_id, fdr_gsea, pdcl, db, category) %>%
+    rename(fdr = fdr_gsea) %>%
+    mutate(method = "gsea")
+  
+  rbind(gprofiler, gsea)
+}
+
+find.common.pathways <- function(collapsed.by.pathways, threshold){
+  common <- collapsed.by.pathways 
+  common <- common %>%
+    mutate(is.common = ( common$fdr_gprofiler<threshold & common$fdr_gsea<threshold ) ) %>%
+    select(pdcl, pathway_id, is.common)
+  common$is.common[is.na(common$is.common)] <- F
+  
+  common$is.common <- factor(
+    common$is.common, 
+    levels = c("TRUE", "FALSE"), 
+    labels = c("Common Pathways", "Specific Pathways")
+  )
+  
+  common
 }
 
 assign.categories <- function(x){
@@ -192,20 +222,54 @@ plot.count.categories <- function(x){
     scale_x_discrete(drop = F)
 }
 
+generate.breaks <- function(min, max, midpoint, n){
+  left <- seq(from = min, to = midpoint, length.out = n ) 
+  right <- seq(from = midpoint, to = max, length.out = n )[-1]
+  c(left, right)
+}
+
+fdr.to.factor <- function(x, n){
+  break.vect <- generate.breaks(0, 1, threshold, n)
+  cut.vect <- cut(x$fdr, breaks = break.vect, labels = break.vect[-1])
+  cut.vect <- factor(cut.vect, levels = rev(levels(cut.vect)))
+  x$fdr <- cut.vect
+  x
+}
+
 heatmap.pathways <- function(x){
-  data <- x %>% filter(is.common == "Common Pathways")
+  common.pathways <- x %>% 
+    filter(is.common == "Common Pathways") %>%
+    select(pdcl, pathway_id, is.common)
+  pathway.ids <- unique(common.pathways$pathway_id)
+  data <- x %>% filter(pathway_id %in% pathway.ids)
+  data <- fdr.to.factor(data, 5)
   ggplot(
     data = data, 
     aes(x = pdcl, y = pathway_id, fill =  fdr)
   ) +
-    geom_raster() +
+    geom_tile() +
+    geom_tile(
+      data = common.pathways,
+      mapping = aes(x = pdcl, y = pathway_id),
+      inherit.aes = F,
+      colour = 'black',
+      fill = NA,
+      size = 0.5
+    ) +
     labs(
       title = "Heatmap",
       x = "PDCL",
       y = "Pathway"
     ) +
     facet_wrap(vars(method)) +
-    theme(axis.text.x = element_text(angle = 90) ) 
+    theme(axis.text.x = element_text(angle = 90) ) +
+    scale_fill_brewer(
+      palette = "RdBu",
+      na.value = "gray30",
+      direction = -1
+    ) +
+    #We need to specify this. If not, unpopulated categories do not appear
+    scale_x_discrete(drop = F)
 }
 
 heatmap.categories <- function(x){
@@ -220,5 +284,6 @@ heatmap.categories <- function(x){
       y = "Categories"
     ) +
     facet_wrap(~method) +
+    scale_fill_viridis_c(direction = 1) +
     theme(axis.text.x = element_text(angle = 90) )
 }
