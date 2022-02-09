@@ -4,16 +4,10 @@ library(dplyr)
 library(tidyr)
 
 # run gsea analysis with reactome and bioplanet GMT files for a list of DE analysis result
-run.gsea <- function(f, reactome.gmt, bioplanet.gmt, create.ranked.list){
-  message("###### GSEA Analysis for : ", f)
-  ranked.list <- create.ranked.list(f)
+run.gsea <- function(ranked.list, reactome.gmt, bioplanet.gmt){
   res <- list()
-  message("\tRunning Reactome Enrichment ...")
   res[["reactome"]] <- fgsea(reactome.gmt, ranked.list, minSize=15, maxSize=500, nperm = 1000)
-  message("\tDone !")
-  message("\tRunning Bioplanet Enrichment ...")
   res[["bioplanet"]] <- fgsea(bioplanet.gmt, ranked.list, minSize=15, maxSize=500, nperm = 1000)
-  message("\tDone !")
   return(res)
 }
 

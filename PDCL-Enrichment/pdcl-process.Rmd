@@ -23,7 +23,7 @@ source("Code/PDCL-Enrichment/plot-result.R")
 ```{r}
 astrocyte.file <- "Data/PDCL/astrocyte_GSE109001_counts_unique_genes_samples_filtered.txt"
 astrocyte.dt <- read.table(astrocyte.file, header = T, sep = "\t", as.is = c("id", "symbol"))
-control.samples.names <- c(
+control.sample.names <- c(
   "AF22_NES_Astro_Br1_d29_37_S46",
   "AF22_NES_Astro_Br2_d29_38_S56",
   "AF22_NES_Astro_Br3_d29_39_S66",
@@ -45,7 +45,7 @@ Load the PDCL count table
 Disabled check.names otherwise it will an X as column names aren't valid according to R
 ```{r}
 pdcl.count.table <- read.table("/home/spinicck/PhD/Data/PDCL/lignees_count_genes_PDCL.txt", sep = "\t", header = T, as.is = "gene_id", check.names = F)
-pdcl.samples.name <- c(
+pdcl.sample.names <- c(
   "4339-p21",
   "4371-p37",
   "5706-p14",
@@ -123,17 +123,12 @@ bioplanet.gmt <- gmtPathways("Data/gene-set/jorge-gmt/bioplanet_gmt_symbol_no_un
 
 Run GSEA for DESeq2 result
 ```{r}
-deseq2.res.dir <- "Result/PDCL/deseq2/"
-deseq2.res.files <- list.files(deseq2.res.dir)
-deseq2.res.files <- paste0(deseq2.res.dir, deseq2.res.files)
-deseq2.gsea <- lapply(deseq2.res.files, run.gsea, reactome.gmt, bioplanet.gmt, function(f) { 
-  x <- read.table(f, header = T, sep = ",")
-  x <- as.data.frame(x) %>% transmute(rank=log2FoldChange, gene=X) %>% arrange(desc(rank))
-  rnk <- x$rank
-  names(rnk) <- x$gene
+rank.list <- lapply(deseq2.res.list, function(x){
+  rnk <- x$log2FoldChange
+  names(rnk) <- row.names(x)
   rnk
 })
-names(deseq2.gsea) <- sapply(deseq2.res.files, get.analysis.name)
+deseq2.gsea <- lapply(rank.list, run.gsea, reactome.gmt, bioplanet.gmt)
 saveRDS(deseq2.gsea, file = "Result/PDCL/gsea_deseq2_genes.rds")
 deseq2.gem <- lapply(deseq2.gsea, convert.gsea.to.gem)
 save.gem.list.to.txt(deseq2.gem, "Result/PDCL/gsea/deseq2/", "deseq2")
