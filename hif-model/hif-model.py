@@ -2,6 +2,7 @@
 
 from abc import ABC, abstractclassmethod
 from operator import mod
+from matplotlib.pyplot import title
 import numpy as np
 from numpy.linalg import cond
 from plotly.subplots import make_subplots
@@ -67,7 +68,7 @@ class Simu(ABC):
             "pg" : 1.0,
             "A0" : 0.10875,
             "Kg" : 0.04,
-            "Kh" : 1e-5
+            "Kh" : 2.5e-4
         }
         self.pSimu = {
             "tspan" : [0.0, 1440.0],
@@ -381,8 +382,13 @@ def get_contour_h_prod_rate(simulation, title, nbInterval=10):
             colorbar = {
                 "exponentformat" : "e",
                 "showexponent" : "all",
-                "title" : "Protons Rate (mmol/L/min)"
-            }
+                "title" : "Protons Rate (mmol/L/min)"   
+            },
+             contours=dict(
+                start=0,
+                end=0.001,
+                size=1e-4
+            )
         )
     )
     fig.update_layout(
@@ -447,12 +453,13 @@ def run_PLGC_Model_hif_and_pdh_overexpressed():
 
 def alter_all_genetic_regulations():
     dir = "/home/spinicck/PhD/Code/output/hif-model/images/contourmap/"
+    title = "Protons production rate in various extracellular conditions"
     simulation = PLGCModel()
     simulation.initialCondition = y0
-    get_contour_h_prod_rate(simulation, "Protons production rate in various conditions").write_image(dir + "normal.png", scale=3)
+    get_contour_h_prod_rate(simulation, title).write_image(dir + "normal.png", scale=3)
 
     gammas = [ (0,1), (1,2), (1,3), (3, 4) ]
-    activation = [1, 40]
+    activation = [1, 2, 3, 5, 10, 40]
     names = ["O2", "HIF", "LDH", "PDK", "PDH"]
     for (x,y) in gammas:
             for g in activation:
@@ -461,10 +468,142 @@ def alter_all_genetic_regulations():
                 simulation.changeGamma(x, y, g)
                 fig = get_contour_h_prod_rate(
                     simulation, 
-                    "Protons production rate in various conditions- γ{}->{} = {}".format(names[x], names[y], g)
+                    "{} - γ{}->{} = {}".format(title, names[x], names[y], g)
                 )
                 file = dir + "{}_{}_{}.png".format(names[x], names[y], g)
                 fig.write_image(file, scale=3)
+
+def figure_for_publication():
+    nbInterval = 10
+
+    fig = make_subplots(
+        rows = 2,
+        cols = 2, 
+        subplot_titles= (
+            "Protons production rate in various extracellular conditions",
+            "Reduced HIF degradation",
+            "Increased HIF degration",
+            "Reduced LDH upregulation by HIF"
+        )
+    )
+    
+    simulation = PLGCModel()
+    simulation.initialCondition = y0
+    oxygen, glucose, data = simulate_at_different_extra_concentration(simulation, nbInterval)
+    fig.add_trace(
+        go.Contour(
+            x = oxygen,
+            y = glucose,
+            z = data,
+            zmin = 0.0,
+            zmax = data.max(),
+            contours=dict(
+                start=0,
+                end=0.001,
+                size=1e-4
+            ),
+            coloraxis="coloraxis"
+        ),
+        row = 1,
+        col = 1
+    )
+
+    simulation = PLGCModel()
+    simulation.initialCondition = y0
+    simulation.changeGamma(0, 1, 1)
+    oxygen, glucose, data = simulate_at_different_extra_concentration(simulation, nbInterval)
+    fig.add_trace(
+        go.Contour(
+            x = oxygen,
+            y = glucose,
+            z = data,
+            zmin = 0.0,
+            zmax = data.max(),
+            contours=dict(
+                start=0,
+                end=0.001,
+                size=1e-4
+            ),
+            coloraxis="coloraxis"
+        ),
+        row = 1,
+        col = 2
+    )
+    
+    simulation = PLGCModel()
+    simulation.initialCondition = y0
+    simulation.changeGamma(0, 1, 40)
+    oxygen, glucose, data = simulate_at_different_extra_concentration(simulation, nbInterval)
+    fig.add_trace(
+        go.Contour(
+            x = oxygen,
+            y = glucose,
+            z = data,
+            zmin = 0.0,
+            zmax = data.max(),
+            contours=dict(
+                start=0,
+                end=0.001,
+                size=1e-4
+            ),
+            coloraxis="coloraxis"
+        ),
+        row = 2,
+        col = 1
+    )
+
+    simulation = PLGCModel()
+    simulation.initialCondition = y0
+    simulation.changeGamma(1, 2, 3)
+    oxygen, glucose, data = simulate_at_different_extra_concentration(simulation, nbInterval)
+    fig.add_trace(
+        go.Contour(
+            x = oxygen,
+            y = glucose,
+            z = data,
+            zmin = 0.0,
+            zmax = data.max(),
+            contours=dict(
+                start=0,
+                end=0.001,
+                size=1e-4
+            ),
+            coloraxis="coloraxis"
+        ),
+        row = 2,
+        col = 2
+    )
+
+    fig.update_xaxes(title_text = "Oxygen concentration (mmol/L)")
+    fig.update_yaxes(title_text = "Glucose concentration (mmol/L)")
+    fig.update_layout(
+        coloraxis = dict(
+            colorbar = {
+                "exponentformat" : "e",
+                "showexponent" : "all",
+                "title" : "Protons Rate (mmol/L/min)"   
+            }
+        ),
+        font = dict(
+            family = "Arial",
+            size = 16
+        )
+    )
+
+    fig.update_annotations(
+        font_size = 24
+    )
+    
+    file = "/home/spinicck/PhD/Code/output/hif-model/images/contourmap/publication_ready_plot.png"
+    fig.write_image(file, width = 2000, height  = 1000)
+
+def test():
+    simulation = PLGCModel()
+    simulation.initialCondition = y0
+    get_contour_h_prod_rate(
+        simulation, 
+        "Protons production rate in various\noxygen and glucose extracellular conditions"
+    ).show()
 
 if __name__ == "__main__":
     pass
