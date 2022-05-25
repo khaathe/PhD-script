@@ -480,7 +480,7 @@ def figure_for_publication():
         rows = 2,
         cols = 2, 
         subplot_titles= (
-            "Protons production rate in various extracellular conditions",
+            "Normal Conditions",
             "Reduced HIF degradation",
             "Increased HIF degration",
             "Reduced LDH upregulation by HIF"
@@ -577,6 +577,9 @@ def figure_for_publication():
     fig.update_xaxes(title_text = "Oxygen concentration (mmol/L)")
     fig.update_yaxes(title_text = "Glucose concentration (mmol/L)")
     fig.update_layout(
+        title_text = "Protons production rate in various extracellular conditions",
+        title_font_family = "Arial",
+        title_font_size = 36,
         coloraxis = dict(
             colorbar = {
                 "exponentformat" : "e",
